@@ -3,6 +3,8 @@
 
 #include "THaTrackingDetector.h"
 #include "THcHitList.h"
+#include "THcLADGEMPlane.h"
+#include "THcLADGEMModule.h"
 
 class THcLADGEM : public THaTrackingDetector, public THcHitList {
  public:
@@ -13,14 +15,32 @@ class THcLADGEM : public THaTrackingDetector, public THcHitList {
 
   virtual Int_t   Decode( const THaEvData& );
   virtual EStatus Init( const TDatime& date );
-  virtual void    Clear( Option_t* opt="" );
   virtual Int_t   CoarseTrack( TClonesArray& tracks );
   virtual Int_t   FineTrack( TClonesArray& tracks );
+  //  virtual Int_t   End( THaRunBase* r=0 );
 
  protected:
   
+  void            ClearEvent();
+  void            Setup(const char* name, const char* description);
+  virtual Int_t   DefineVariables( EMode mode = kDefine );
+  virtual Int_t   ReadDatabase( const TDatime& date );
+
+  Int_t fNModules;  // total number of modules
+  Int_t fNPlanes;   // total number of GEM planes
+  Int_t fNhits;
+
+
+  // pointer to global var indicatiing whether this spectrometer is triggered
+  // for this event
+  Bool_t* fPresentP;
+
+  vector<THcLADGEMModule*> fModules;
+  vector<THcLADGEMPlane*> fPlanes;
+
+  bool fModulesInitialized;
+
   ClassDef(THcLADGEM,0)
-    
 };
 
 #endif /* THcLADGEM_h */

@@ -10,11 +10,14 @@ set(PACKAGE LAD)
 
 # Sources
 set(src
+  MPDModule.cxx
+  MPDModuleVMEv4.cxx
   THcLADSpectrometer.cxx
   THcLADHodoscope.cxx
   THcLADHodoPlane.cxx
   THcLADHodoHit.cxx
   THcLADGEM.cxx
+  THcLADGEMModule.cxx
   THcLADGEMPlane.cxx
   )
 

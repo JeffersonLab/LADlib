@@ -8,39 +8,36 @@
 /////////////////////////////////////////////////
 
 #include "THaSpectrometer.h"
-#include "THcLADHodoscope.h"
-#include "THcLADGEM.h"
+#include "TClonesArray.h"
 
 class THcLADSpectrometer : public THaSpectrometer {
 
-public:
-  THcLADSpectrometer(const char *name, const char *description);
+ public:
+
+  THcLADSpectrometer( const char* name, const char* description );
   virtual ~THcLADSpectrometer();
+  
+  virtual void  Clear( Option_t* opt="" );
 
-  virtual void Clear(Option_t *opt = "");
 
-  // In case we need to redefine these functions
-  /*
-  virtual Int_t CoarseReconstruct();
   virtual Int_t CoarseTrack();
-  virtual Int_t Reconstruct();
   virtual Int_t Track();
-  */
+  virtual Int_t Reconstruct();
+  virtual Int_t CoarseReconstruct();
 
-  virtual Int_t FindVertices(TClonesArray &tracks);
+  virtual Int_t FindVertices( TClonesArray& tracks );
+  virtual Int_t Decode( const THaEvData& );
   virtual Int_t TrackCalc();
-  virtual Int_t Decode(const THaEvData &);
 
-  virtual Int_t DefineVariables(EMode mode = kDefine);
-  virtual Int_t ReadDatabase(const TDatime &date);
-  virtual Int_t ReadRunDatabase(const TDatime &date);
+ protected:
 
-protected:
-  Int_t fNtracks;
-  THcLADHodoscope* fHodo;
-  THcLADGEM* fGEM;
+  Int_t   fNtracks;
 
-  ClassDef(THcLADSpectrometer, 0)
+  virtual Int_t DefineVariables( EMode mode = kDefine );
+  virtual Int_t ReadDatabase( const TDatime& date );
+
+  ClassDef(THcLADSpectrometer,0)
+    
 };
 
 #endif /* THcLADSpectrometer_h */
