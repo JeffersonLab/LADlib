@@ -12,6 +12,7 @@ THcLADGEMCluster::THcLADGEMCluster()
   fStripHigh = -1;
   fStripMax = -1;
 
+  fLayer = -1;
   fMPD = -1;
   fAPV = -1;
   fAxis = -1;
@@ -40,6 +41,7 @@ void THcLADGEMCluster::Clear(Option_t* opt)
   fStripHigh = -1;
   fStripMax = -1;
 
+  fLayer = -1;
   fMPD = -1;
   fAPV = -1;
   fAxis = -1;

@@ -28,6 +28,11 @@ class THcLADGEMCluster : public TObject {
   Double_t GetTime()     { return fTime; }
   Double_t GetTimeFit()     { return fTimeFit; }
 
+  Double_t GetMPD() { return fMPD; }
+  Double_t GetAPV() { return fAPV; }
+  Double_t GetLayer() { return fLayer; }
+  Double_t GetAxis() { return fAxis; }
+
   void SetMode(int this_value) { fClusteringFlag = this_value; }
   void SetNStrips(int this_value) { fNStrips = this_value; }
   void SetStripLow(int this_value) { fStripLow = this_value; }
@@ -47,6 +52,7 @@ class THcLADGEMCluster : public TObject {
   void SetADCsum(double this_value) { fADCsum = this_value; }
   void SetSampMax(int this_value) { fSampMax = this_value; }
 
+  void SetLayer(int this_value ) { fLayer = this_value; }
   void SetMPD(int this_value ) { fMPD = this_value; }
   void SetAPV(int this_value ) { fAPV = this_value; }
   void SetAxis(int this_value) { fAxis = this_value; }
@@ -60,6 +66,7 @@ class THcLADGEMCluster : public TObject {
   Int_t    fStripHigh;
   Int_t    fStripMax;
 
+  Int_t    fLayer;
   Int_t    fMPD;
   Int_t    fAPV; // APV adc id
   Int_t    fAxis; // U/V, X/Y 

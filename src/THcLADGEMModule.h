@@ -29,6 +29,22 @@ struct mpdmap_t {
   UInt_t index;
 };
 
+/*
+struct ClusterOut_t {
+  // handle 1d cluster output variables  
+  int layer;
+  int mpdid;
+  int axis;
+  int nstrip;
+  int maxstrip;
+  double adc;
+  double time;
+
+  //vector<int> stripid;
+  //vector<double> stripadc;
+};
+*/
+
 class THcLADGEMModule : public THaSubDetector {
  public:
 
@@ -365,6 +381,8 @@ class THcLADGEMModule : public THaSubDetector {
 
   std::vector<THcLADGEMCluster> fClustersU;
   std::vector<THcLADGEMCluster> fClustersV;
+
+  //  ClusterOut_t fClusOut;
 
   class GEM2DHits {
   public:

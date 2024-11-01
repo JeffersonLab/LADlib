@@ -29,6 +29,9 @@ THcLADGEMModule::THcLADGEMModule( const char* name, const char* description,
 THcLADGEMModule::~THcLADGEMModule()
 {
   // Default desctructor
+  Clear();
+  if( fIsSetup )
+    RemoveVariables();
 
 }
 
@@ -709,7 +712,21 @@ Int_t THcLADGEMModule::DefineVariables( EMode mode )
 {
   cout << "THcLADGEMModule::DefineVariables" << endl;
 
-  // Define strip variables 
+  if( mode == kDefine && fIsSetup ) return kOK;
+  fIsSetup = ( mode == kDefine );
+
+  RVarDef vars[] = {
+    // {"clust.nclus", "Total number of clusters", ""},
+    {"clust.nclus_u", "Number of X clusters", "fClustersU.size()"},
+    {"clust.nclus_v", "Number of Y clusters", "fClustersV.size()"},
+    {"clust.nstrip", "Number of strips in cluster", ""},
+    {"clust.axis", "U/V axis", ""},
+    {"clust.layer", "GEM Layer", ""},
+    {"clust.mpd", "MPD ID", ""},
+    {"clust.adc", "", ""},
+    {"clust.time", "", ""},
+    { 0 }
+  };
 
   return 0;
 
@@ -1611,7 +1628,8 @@ Int_t THcLADGEMModule::CoarseProcess( TClonesArray& tracks )
   FindClusters1D(LADGEM::kUaxis); // +input ucenter, 0.5*(umax-umin) for u strips
   FindClusters1D(LADGEM::kVaxis); // +input ucenter, 0.5*(umax-umin) for v strips
 
-
+  // Find 2D hits
+  Find2DHits();
 
   return 0;
 }
@@ -1620,6 +1638,8 @@ Int_t THcLADGEMModule::CoarseProcess( TClonesArray& tracks )
 Int_t THcLADGEMModule::FineProcess( TClonesArray& tracks )
 {
   // cout << "THcLADGEMModule::FineProcess" << endl;
+
+
 
   return 0;
 }
@@ -1630,7 +1650,7 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis)
 
   UShort_t maxsep = ( axis == LADGEM::kUaxis ) ? fMaxNeighborsU_totalcharge : fMaxNeighborsV_totalcharge;
   UShort_t maxsepcoord = ( axis == LADGEM::kUaxis ) ? fMaxNeighborsU_hitpos : fMaxNeighborsV_hitpos; 
-  UInt_t Nstrips = ( axis == LADGEM::kUaxis ) ? fNstripsU : fNstripsV;
+  UInt_t   Nstrips = ( axis == LADGEM::kUaxis ) ? fNstripsU : fNstripsV;
   Double_t pitch = ( axis == LADGEM::kUaxis ) ? fUStripPitch : fVStripPitch;
   Double_t offset = (axis == LADGEM::kUaxis) ? fUStripOffset : fVStripOffset;
 
@@ -1983,7 +2003,8 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis)
 
     THcLADGEMCluster cluster;
     cluster.SetMode(fClusteringFlag);
-    cluster.SetMPD(fStripRaw[hitindex[stripmax]]);
+    cluster.SetLayer(fLayer);
+    cluster.SetMPD(fStripMPD[hitindex[stripmax]]);
     cluster.SetAPV(fStripADC_ID[hitindex[stripmax]]);
     cluster.SetAxis(axis);
     cluster.SetStrips(nstrips, striplo, striphi, stripmax);
