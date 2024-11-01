@@ -1,12 +1,12 @@
 #ifndef THcLADGEM_h
 #define THcLADGEM_h
 
-#include "THaTrackingDetector.h"
+#include "THaNonTrackingDetector.h"
 #include "THcHitList.h"
 #include "THcLADGEMPlane.h"
 #include "THcLADGEMModule.h"
 
-class THcLADGEM : public THaTrackingDetector, public THcHitList {
+class THcLADGEM : public THaNonTrackingDetector, public THcHitList {
  public:
 
   THcLADGEM( const char* name, const char* description = "",
@@ -15,8 +15,8 @@ class THcLADGEM : public THaTrackingDetector, public THcHitList {
 
   virtual Int_t   Decode( const THaEvData& );
   virtual EStatus Init( const TDatime& date );
-  virtual Int_t   CoarseTrack( TClonesArray& tracks );
-  virtual Int_t   FineTrack( TClonesArray& tracks );
+  virtual Int_t   CoarseProcess( TClonesArray& tracks );
+  virtual Int_t   FineProcess( TClonesArray& tracks );
   //  virtual Int_t   End( THaRunBase* r=0 );
 
  protected:

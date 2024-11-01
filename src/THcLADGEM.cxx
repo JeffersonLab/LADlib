@@ -14,7 +14,7 @@ using namespace std;
 //____________________________________________________________
 THcLADGEM::THcLADGEM( const char* name, const char* description,
 		      THaApparatus* apparatus) :
-  THaTrackingDetector(name, description, apparatus)
+  THaNonTrackingDetector(name, description, apparatus)
 {
   // constructor
 
@@ -60,7 +60,7 @@ THaAnalysisObject::EStatus THcLADGEM::Init( const TDatime& date)
   cout << "THcLADGEM::Init" << endl;
 
   EStatus status;
-  if( (status = THaTrackingDetector::Init( date )) )
+  if( (status = THaNonTrackingDetector::Init( date )) )
     return fStatus = status;
 
   fPresentP = nullptr;
@@ -111,6 +111,8 @@ Int_t THcLADGEM::DefineVariables( EMode mode )
 //____________________________________________________________________________________
 void THcLADGEM::Setup(const char* name, const char* description)
 {
+  cout << "THcLADGEM::Setup" << endl;
+
   // initial values
   fNModules = 1;
   fNPlanes = 1;
@@ -131,7 +133,7 @@ void THcLADGEM::Setup(const char* name, const char* description)
   gHcParms->LoadParmValues((DBRequest*)&list, prefix);
 
   for(int imod = 0; imod < fNModules; imod++) {
-    cout << "Initialize GEM modules " << endl;
+    cout << "Initialize GEM modules: " << imod <<  endl;
     THcLADGEMModule* new_module = new THcLADGEMModule(Form("m%d",imod), Form("m%d",imod), this);
     fModules.push_back(new_module);
   }
@@ -173,8 +175,10 @@ Int_t THcLADGEM::Decode( const THaEvData& evdata )
 }
 
 //____________________________________________________________
-Int_t THcLADGEM::CoarseTrack( TClonesArray& tracks )
+Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
 {
+  cout << "THcLADGEM::CoarseProcess" << endl;
+
   // track finding called here and added them into the TClonesArray tracks
   // In hcana, tracks are defined in the detector coordinate system
 
@@ -198,8 +202,10 @@ Int_t THcLADGEM::CoarseTrack( TClonesArray& tracks )
 }
 
 //____________________________________________________________
-Int_t THcLADGEM::FineTrack( TClonesArray& tracks )
+Int_t THcLADGEM::FineProcess( TClonesArray& tracks )
 {
+  cout << "THcLADGEM::FineProcess" << endl;
+
   return 0;
 }
 

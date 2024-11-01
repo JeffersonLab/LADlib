@@ -7,35 +7,35 @@
 //
 /////////////////////////////////////////////////
 
-#include "THaSpectrometer.h"
+#include "THaApparatus.h"
 #include "TClonesArray.h"
 
-class THcLADSpectrometer : public THaSpectrometer {
+class THcLADSpectrometer : public THaApparatus {
 
  public:
 
   THcLADSpectrometer( const char* name, const char* description );
   virtual ~THcLADSpectrometer();
   
-  virtual void  Clear( Option_t* opt="" );
-
-
-  virtual Int_t CoarseTrack();
-  virtual Int_t Track();
-  virtual Int_t Reconstruct();
   virtual Int_t CoarseReconstruct();
-
-  virtual Int_t FindVertices( TClonesArray& tracks );
+  virtual Int_t Reconstruct();
   virtual Int_t Decode( const THaEvData& );
-  virtual Int_t TrackCalc();
 
  protected:
 
+  TClonesArray* fTracks;
   Int_t   fNtracks;
 
   virtual Int_t DefineVariables( EMode mode = kDefine );
   virtual Int_t ReadDatabase( const TDatime& date );
 
+  TList* fNonTrackingDetectors;
+
+ private:
+  Bool_t fListInit;
+  void   ListInit();
+
+  THcLADSpectrometer();
   ClassDef(THcLADSpectrometer,0)
     
 };

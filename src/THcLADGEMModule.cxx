@@ -90,6 +90,9 @@ void THcLADGEMModule::Clear( Option_t* opt )
   fClustersU.clear();
   fClustersV.clear();
   f2DHits.clear();  
+
+  fNClusU = 0;
+  fNClusV = 0;
 }
 
 //____________________________________________________________________________________
@@ -717,19 +720,20 @@ Int_t THcLADGEMModule::DefineVariables( EMode mode )
 
   RVarDef vars[] = {
     // {"clust.nclus", "Total number of clusters", ""},
-    {"clust.nclus_u", "Number of X clusters", "fClustersU.size()"},
-    {"clust.nclus_v", "Number of Y clusters", "fClustersV.size()"},
-    {"clust.nstrip", "Number of strips in cluster", ""},
+    {"clust.nclus_u", "Number of X clusters", "fNClusU"},
+    {"clust.nclus_v", "Number of Y clusters", "fNClusV"},
+    /*
+    {"clust.nstrip", "Number of strips in cluster", "fClustersU.THcLADGEMCluster.GetNStrips()"},
     {"clust.axis", "U/V axis", ""},
     {"clust.layer", "GEM Layer", ""},
     {"clust.mpd", "MPD ID", ""},
     {"clust.adc", "", ""},
     {"clust.time", "", ""},
+    */
     { 0 }
   };
 
-  return 0;
-
+  return DefineVarsFromList( vars, mode );
 }
 
 //____________________________________________________________________________________
@@ -1622,11 +1626,14 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 //____________________________________________________________________________________
 Int_t THcLADGEMModule::CoarseProcess( TClonesArray& tracks )
 {
-  // cout << "THcLADGEMModule::CoarseProcess" << endl;
+  cout << "THcLADGEMModule::CoarseProcess" << endl;
 
   // Find 1D clusters for each axis
   FindClusters1D(LADGEM::kUaxis); // +input ucenter, 0.5*(umax-umin) for u strips
   FindClusters1D(LADGEM::kVaxis); // +input ucenter, 0.5*(umax-umin) for v strips
+
+  cout << "*************1D CLUSTER INFO*************" << endl;
+  cout << fClustersU.size() << " " << GetNClusters(0) << endl;
 
   // Find 2D hits
   Find2DHits();

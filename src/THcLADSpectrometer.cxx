@@ -1,13 +1,17 @@
 #include "THcLADSpectrometer.h"
+#include "THaNonTrackingDetector.h"
+#include "TDatime.h"
 #include "TList.h"
 #include "THaTrack.h"
 
 using namespace std;
 
 THcLADSpectrometer::THcLADSpectrometer( const char* name, const char* description ) :
-  THaSpectrometer( name, description )
+  THaApparatus( name, description )
 {
   // default constructor 
+  fTracks = 0;
+  fNonTrackingDetectors = new TList;
 
 }
 
@@ -21,16 +25,29 @@ THcLADSpectrometer::~THcLADSpectrometer()
 }
 
 //____________________________________________________________________
-void THcLADSpectrometer::Clear( Option_t* opt )
+void THcLADSpectrometer::ListInit()
 {
 
+  fNonTrackingDetectors->Clear();
+  TIter next(fDetectors);
+  while( THaDetector* theDetector =
+	 static_cast<THaDetector*>( next() )) {
+
+    // We don't really have a tracking detector 
+
+    fNonTrackingDetectors->Add( theDetector );
+  }
+
+  fListInit = kTRUE;  
 }
 
 //____________________________________________________________________
 Int_t THcLADSpectrometer::DefineVariables( EMode mode )
 {
+  if (mode == kDefine && fIsSetup) return kOK;
+  fIsSetup = (mode == kDefine);
 
-  return 0;
+  return kOK;
 }
 
 //____________________________________________________________________
@@ -42,30 +59,34 @@ Int_t THcLADSpectrometer::ReadDatabase( const TDatime& date )
 }
 
 //____________________________________________________________________
+/*
 Int_t THcLADSpectrometer::CoarseTrack()
 {
 
-  THaSpectrometer::CoarseTrack();
+  //  THaSpectrometer::CoarseTrack();
+  TIter next( fTrackingDetectors );
+  while( THaTrackingDetector* theTrackDetector =
+	 static_cast<THaTrackingDetector*>( next() )) {
+#ifdef WITH_DEBUG
+    if( fDebug >1 ) cout << "Call CoarseProcess() for "
+			 << theTrackDetector->GetName() << "... ";
+#endif
+    theTrackDetector->CoarseTrack( *fTracks );
+#ifdef WITH_DEBUG
+    if ( fDebug>1 ) cout << "done.\n";
+#endif
+  }
+
   return 0;
 
 }
-
-
+*/
 //____________________________________________________________________
 
 Int_t THcLADSpectrometer::Decode( const THaEvData& evdata )
 {
 
   return THaApparatus::Decode(evdata);
-
-}
-
-//____________________________________________________________________
-Int_t THcLADSpectrometer::Track()
-{
-
-  THaSpectrometer::Track();
-  return 0;
 
 }
 
@@ -93,6 +114,9 @@ Int_t THcLADSpectrometer::Reconstruct()
 Int_t THcLADSpectrometer::CoarseReconstruct()
 {
 
+  if( !fListInit )
+    ListInit();
+
   TIter next( fNonTrackingDetectors );
   while( THaNonTrackingDetector* theNonTrackDetector =
 	 static_cast<THaNonTrackingDetector*>( next() )) {
@@ -111,30 +135,7 @@ Int_t THcLADSpectrometer::CoarseReconstruct()
 }
 
 //____________________________________________________________________
-Int_t THcLADSpectrometer::FindVertices( TClonesArray& tracks )
-{
-
-  fNtracks = tracks.GetLast() + 1;
-  
-  // add more 
-  // HallC spectrometer chooses between 3 different method to select best track
-  // depends
-  // (see THcHallCSpectrometer)
-  
-  return 0;
-}
-
-//____________________________________________________________________
-Int_t THcLADSpectrometer::TrackCalc()
-{
-
-  for( Int_t t = 0; t < fTracks->GetLast()+1; t++ ) {
-    auto* theTrack = static_cast<THaTrack*>( fTracks->At(t) );
-    //do nothing
-  }
-  return 0;
-
-}
+THcLADSpectrometer::THcLADSpectrometer() {}
 
 ClassImp(THcLADSpectrometer)
 
