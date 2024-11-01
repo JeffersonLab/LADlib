@@ -3,6 +3,8 @@
 
 #include "THaSubDetector.h"
 #include "TClonesArray.h"
+#include "THcLADGEMCluster.h"
+
 #include <vector>
 #include <set>
 #include <map>
@@ -40,7 +42,20 @@ class THcLADGEMModule : public THaSubDetector {
   virtual Int_t   CoarseProcess( TClonesArray& tracks );
   virtual Int_t   FineProcess( TClonesArray& tracks );
 
-  THcLADGEMModule();
+  std::vector<THcLADGEMCluster> GetClusters(int axis){
+    if( axis == LADGEM::kUaxis )
+      return fClustersU;
+    else
+      return fClustersV;
+  }
+
+  Int_t GetNClusters(int axis) {
+    if( axis == LADGEM::kUaxis )
+      return fClustersU.size();
+    else
+      return fClustersV.size();
+  }
+
  protected:
 
   bool fIsDecoded;
@@ -247,6 +262,19 @@ class THcLADGEMModule : public THaSubDetector {
   Double_t fHitTimeMeanFit[2], fHitTimeSigmaFit[2];
   Double_t fSigmaHitTimeAverageCorrected;
 
+  //Parameters controlling cluster splitting and insignificant peak elimination based on "peak prominence" calculation
+  Double_t fThresh_2ndMax_nsigma;   //Number of sigmas above noise level for minimum peak prominence in splitting overlapping clusters
+  Double_t fThresh_2ndMax_fraction; //Peak prominence threshold as a fraction of peak height for splitting overlapping clusters
+
+  UShort_t fMaxNeighborsU_totalcharge; //Only strips within +/- fMaxNeighborsU of the peak can be added to a cluster for total charge calculation
+  UShort_t fMaxNeighborsV_totalcharge; //Only strips within +/- fMaxNeighborsV of the peak can be added to a cluster for total charge calculation
+
+  //Only strips within these limits around the peak can be used for hit position reconstruction
+  UShort_t fMaxNeighborsU_hitpos; 
+  UShort_t fMaxNeighborsV_hitpos; 
+
+
+
 
   std::vector<Double_t> fADCsamples1D; //1D array to hold ADC samples; should end up with dimension fNstrips_hit*fN_MPD_TIME_SAMP
   std::vector<Int_t> fRawADCsamples1D;
@@ -280,6 +308,11 @@ class THcLADGEMModule : public THaSubDetector {
   std::vector<Double_t> fCMbiasV;
   
   double fCommonModeRange_nsigma; //default = 5
+
+
+  // Clustering parameters
+
+  Double_t fSigma_hitshape; // controll hit shape for cluster-splitting algorithm
   
   //GEOMETRICAL PARAMETERS:
   Double_t fUStripPitch;    //strip pitch along U, will virtually always be 0.4 mm
@@ -302,7 +335,6 @@ class THcLADGEMModule : public THaSubDetector {
   bool fCommonModePlots_DBoverride;
 
 
-
   virtual Int_t ReadDatabase(const TDatime& date );
   virtual Int_t DefineVariables( EMode mode = kDefine );
 
@@ -310,6 +342,8 @@ class THcLADGEMModule : public THaSubDetector {
   Double_t StripTSchi2(int hitindex);
   TVector2 UVtoXY( TVector2 UV );
   TVector2 XYtoUV( TVector2 XY );
+  Double_t CorrCoeff(int nsamples, const std::vector<double> &Usamples, const std::vector<double> &Vsamples, int firstsample=0 );
+
   Int_t    GetStripNumber( UInt_t rawstrip, UInt_t pos, UInt_t invert );
   double   GetCommonMode( UInt_t isamp, Int_t flag, const mpdmap_t &apvinfo, UInt_t nhits=128 ); //default to "sorting" method:
   double   GetCommonModeCorrection( UInt_t isamp, const mpdmap_t &apvinfo, UInt_t &ngood, const UInt_t &nhits=128, bool fullreadout=false, Int_t flag=0 );
@@ -322,9 +356,33 @@ class THcLADGEMModule : public THaSubDetector {
   void     InitAPVMAP();
   Int_t    GetChannelMap(const char* prefix, const TDatime& date);
 
-  // FIXME: Should move to THcLADGEM (public)
+  // FIXME: Should move to THcLADGEM? (public)
   void     SetChanMapFile(std::string fname){ fChanMapFileName = fname; };
   std::string fChanMapFileName;
+
+  void FindClusters1D(LADGEM::GEMaxis_t axis);
+  void Find2DHits();
+
+  std::vector<THcLADGEMCluster> fClustersU;
+  std::vector<THcLADGEMCluster> fClustersV;
+
+  class GEM2DHits {
+  public:
+    Double_t posX;
+    Double_t posY;
+    //    Double_t posZ;
+    Double_t TimeMean; // average time
+    Double_t TimeDiff;
+    Double_t TimeCorr;
+    Bool_t   IsGoodHit;
+    //    Bool_t   Filtered;
+    Double_t ADCMean; // average adc sum
+    Double_t ADCasym;
+  };
+  std::vector<GEM2DHits> f2DHits;
+  
+ public:
+  std::vector<GEM2DHits> Get2DHits() { return f2DHits; }
 
   ClassDef(THcLADGEMModule,0)
     

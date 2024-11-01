@@ -159,22 +159,6 @@ Int_t THcLADGEM::Decode( const THaEvData& evdata )
 
   Int_t Nmpdfound = 0;
 
-  //  auto *rdata = (UInt_t*) evdata.GetRawDataBuffer();
-  //  AnalyzeSBSDataBuffer(rdata,  );
-
-  // SBS GEM data decoding
-  /*
-  for( UInt_t i=0; i < fDetMap->GetSize(); i++) {
-    
-    THaDetMap::Module* d = fDetMap->GetModule(i);
-    Decoder::MPDModule* impd = dynamic_cast<Decoder::MPDModule*>(evdata.GetModule(d->crate, d->slot));
-    if(impd) {
-      // found MPD
-      Nmpdfound++;
-    }      
-  }
-  */
-
   // Decode MPD data
   for(auto& module: fModules) {
     module->Decode(evdata);
@@ -194,11 +178,21 @@ Int_t THcLADGEM::CoarseTrack( TClonesArray& tracks )
   // track finding called here and added them into the TClonesArray tracks
   // In hcana, tracks are defined in the detector coordinate system
 
-  // Track finding algorithm for SBS GEM is defined in 
-  // SBSGEMTrackerBase::find_tracks
-  // which first needs to reconstruct 2D cluster hit by calling SBSGEMModule::find_2Dhits
-  // We separate cluster hit finding to SBSGEMModule::CoarseProcess 
-  // and will add track finding related functions here
+  // Here we assume we only have two layers
+  /*
+  for( auto module : fModules ) {
+    // Get 2D hits
+    for( auto& hit : module->Get2DHits() ) {
+  */      
+
+  // Need to sort hits per layer
+  // would be more convenient to add 2dhits to each layer directly
+  // in GEMModule class
+
+  // form combinations of hits from two layers
+  // define stright line, project to vertex
+  // compare z vertex, define variable for d_zvertex
+  // assign track index for the hits
 
   return 0;
 }
@@ -208,6 +202,8 @@ Int_t THcLADGEM::FineTrack( TClonesArray& tracks )
 {
   return 0;
 }
+
+//____________________________________________________________
 
 ClassImp(THcLADGEM)
 

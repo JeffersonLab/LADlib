@@ -420,7 +420,7 @@ Int_t THcLADHodoPlane::ReadDatabase(const TDatime &date) {
                       {Form("scin_%s_%s", GetName(), "btm"), &fPosBtm, kDouble},
                       {Form("scin_%s_%s", GetName(), "top"), &fPosTop, kDouble},
                       // {Form("scin_%s_offset",GetName()), &fPosOffset, kDouble},
-                      {Form("scin_%s_center", GetName()), fPosCenter, kDouble, fNelem},
+                      {Form("scin_%s_center", GetName()), fPosCenter, kDouble, static_cast<UInt_t>(fNelem)},
                       {"hodo_adc_mode", &fADCMode, kInt, 0, 1},
                       {"hodo_adc_diag_cut", &fADCDiagCut, kInt, 0, 1},
                       {"cosmicflag", &fCosmicFlag, kInt, 0, 1},

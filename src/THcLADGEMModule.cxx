@@ -83,7 +83,10 @@ void THcLADGEMModule::Clear( Option_t* opt )
   fxcmax.clear();
   fycmin.clear();
   fycmax.clear();
-  
+
+  fClustersU.clear();
+  fClustersV.clear();
+  f2DHits.clear();  
 }
 
 //____________________________________________________________________________________
@@ -135,7 +138,7 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   fTrigTimeSlope = 1.0; // GEM time vs trig time correlation
 
   fSamplePeriod = 24.0; //nanoseconds:
-  //  fSigma_hitshape = 0.0004; //0.4 mm; controls cluster-splitting algorithm
+  fSigma_hitshape = 0.0004; //0.4 mm; controls cluster-splitting algorithm
 
 //Default clustering parameters:
   fThresholdSample = 50.0;
@@ -206,14 +209,12 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
     fStripMaxTcut_width_fit[axis] = 4.5; //sigmas
     fStripMaxTcut_sigma_fit[axis] = 10.0; //ns
 
-    /*
     fHitTimeMean[axis] = 87.0;
     fHitTimeSigma[axis] = 7.0;
     fHitTimeMeanDeconv[axis] = 50.0;
     fHitTimeSigmaDeconv[axis] = 15.0;
     fHitTimeMeanFit[axis] = 20.0;
     fHitTimeSigmaFit[axis] = 10.0;
-    */
   }
 
   fSigmaHitTimeAverageCorrected = 5.0; //ns
@@ -247,7 +248,7 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   fCommonModeScanRange_Nsigma = 4.0; //Scan window +/- 4 sigma
   fCommonModeStepSize_Nsigma = 0.2; //sigma/5 for step size:
 
-  // fClusteringFlag = 0; //"standard" clustering based on sum of six time samples on a strip
+  fClusteringFlag = 0; //"standard" clustering based on sum of six time samples on a strip
   fDeconvolutionFlag = 0; //Default should be zero
 
 
@@ -582,6 +583,16 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
     fOnlineZeroSuppression = false;
     //fPedSubFlag = 0;
   }
+
+  // Default cut parameters related clustering
+  fThresh_2ndMax_nsigma = 3.0;
+  fThresh_2ndMax_fraction = 0.15;
+
+  fMaxNeighborsU_totalcharge = 4;
+  fMaxNeighborsV_totalcharge = 4;
+  fMaxNeighborsU_hitpos = 3;
+  fMaxNeighborsV_hitpos = 3;
+
 
   // Parsing timing cuts stuff.... leave it out for now
 
@@ -1595,7 +1606,12 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 Int_t THcLADGEMModule::CoarseProcess( TClonesArray& tracks )
 {
   // cout << "THcLADGEMModule::CoarseProcess" << endl;
-  // Move clustering here
+
+  // Find 1D clusters for each axis
+  FindClusters1D(LADGEM::kUaxis); // +input ucenter, 0.5*(umax-umin) for u strips
+  FindClusters1D(LADGEM::kVaxis); // +input ucenter, 0.5*(umax-umin) for v strips
+
+
 
   return 0;
 }
@@ -1606,6 +1622,500 @@ Int_t THcLADGEMModule::FineProcess( TClonesArray& tracks )
   // cout << "THcLADGEMModule::FineProcess" << endl;
 
   return 0;
+}
+
+//____________________________________________________________________________________
+void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis)
+{
+
+  UShort_t maxsep = ( axis == LADGEM::kUaxis ) ? fMaxNeighborsU_totalcharge : fMaxNeighborsV_totalcharge;
+  UShort_t maxsepcoord = ( axis == LADGEM::kUaxis ) ? fMaxNeighborsU_hitpos : fMaxNeighborsV_hitpos; 
+  UInt_t Nstrips = ( axis == LADGEM::kUaxis ) ? fNstripsU : fNstripsV;
+  Double_t pitch = ( axis == LADGEM::kUaxis ) ? fUStripPitch : fVStripPitch;
+  Double_t offset = (axis == LADGEM::kUaxis) ? fUStripOffset : fVStripOffset;
+
+  // Temporary containers to store strip hit information to iterate
+  std::set<UShort_t> striplist;  //sorted list of strips for 1D clustering
+  std::map<UShort_t, UInt_t> hitindex; //key = strip ID, mapped value = index in decoded hit array, needed to access the other information efficiently:
+  std::map<UShort_t, Double_t> pedrms_strip;
+  std::map<UShort_t, Double_t> ADC_strip; // These are the (configuration-dependent) quantities we use for clustering. They depend on the values of fClusteringFlag and fSuppressFirstLast and fDeconvolution_flag
+  std::map<UShort_t, Double_t> ADC_maxsamp; //
+  std::map<UShort_t, Double_t> Tmean_strip; //strip mean time with first and/or last samples removed (if applicable)
+  std::map<UShort_t, Double_t> Tfit_strip; //strip "fit" time
+  std::map<UShort_t, Double_t> Tsigma_strip; //strip rms time with first and/or last samples removed (if applicable)
+  
+  std::set<UShort_t> striplist_neg;  //same as above but for negative strips
+  std::map<UShort_t, UInt_t> hitindex_neg;
+  std::map<UShort_t, Double_t> pedrms_strip_neg;
+
+  for(int ihit = 0; ihit < fNstrips_hit; ihit++) {
+    if( fAxis[ihit] == axis ){
+
+      bool newstrip = (striplist.insert( fStrip[ihit] ) ).second;
+      
+      if( newstrip ){ //should always be true:
+	hitindex[fStrip[ihit]] = ihit;
+	if( axis == LADGEM::kUaxis ){
+	  pedrms_strip[fStrip[ihit]] = fPedRMSU[fStrip[ihit]];
+	} else {
+	  pedrms_strip[fStrip[ihit]] = fPedRMSV[fStrip[ihit]];
+	}
+	
+	// Default flag == 0
+	// using sums of ADC values over all time
+	// samples on a strip
+	ADC_strip[fStrip[ihit]] = fADCsums[ihit];
+	ADC_maxsamp[fStrip[ihit]] = fADCmax[ihit];
+	Tmean_strip[fStrip[ihit]] = fTmean[ihit];
+	Tfit_strip[fStrip[ihit]] = fStripTfit[ihit];
+	Tsigma_strip[fStrip[ihit]] = fTsigma[ihit];
+	
+	if( fClusteringFlag == 1 ) {
+	  ADC_strip[fStrip[ihit]] = fADCmaxDeconvCombo[ihit];
+	  ADC_maxsamp[fStrip[ihit]] = fADCmaxDeconv[ihit];
+	  Tmean_strip[fStrip[ihit]] = fTmeanDeconv[ihit];
+	}
+      }
+    }
+    // FIXME: Do we need to add option for using negative signal?
+  }
+
+  //*************************
+  // finding local maxima
+  //*************************
+
+  std::set<UShort_t> localmaxima;
+  std::map<UShort_t,bool> islocalmax;
+
+
+  for( std::set<UShort_t>::iterator i=striplist.begin(); i != striplist.end(); ++i ){
+    int strip = *i;
+
+    islocalmax[strip] = false;
+
+    double sumstrip = ADC_strip[strip];  
+    double sumleft = 0.0;
+    double sumright = 0.0;
+
+    // check neighbors
+    if( striplist.find( strip - 1 ) != striplist.end() )
+      sumleft = ADC_strip[strip-1]; 
+    
+    if( striplist.find( strip + 1 ) != striplist.end() )
+      sumright = ADC_strip[strip+1];
+
+    double thresh_samp = fThresholdSample; 
+    double thresh_strip = fThresholdStripSum;
+    if( fClusteringFlag == 1 ){
+      thresh_strip = fThresholdDeconvADCMaxCombo;
+      thresh_samp = fThresholdSampleDeconv;
+    }
+
+    // Decide if good ADC/time or not
+    bool goodADC = sumstrip >= thresh_strip && ADC_maxsamp[strip] >= thresh_samp;
+    if( goodADC && sumstrip >= sumleft && sumstrip >= sumright ){
+
+      bool goodtime = true;
+
+      double tstrip = Tmean_strip[strip];
+      double t0 = fStripMaxTcut_central[axis];
+      double tcut = fStripMaxTcut_width[axis];
+      double tsigma = fStripMaxTcut_sigma[axis];
+
+      if( fUseStripTimingCuts == 2 && fClusteringFlag != 1 ){ //alternate timing cut based on strip "fitted" time
+	tstrip = Tfit_strip[strip];
+	t0 = fStripMaxTcut_central_fit[axis];
+	tcut = fStripMaxTcut_width_fit[axis];
+	tsigma = fStripMaxTcut_sigma_fit[axis]; 
+      }
+      if( fClusteringFlag == 1 ){
+	t0 = fStripMaxTcut_central_deconv[axis];
+	tcut = fStripMaxTcut_width_deconv[axis];
+	tsigma = fStripMaxTcut_sigma_deconv[axis]; 
+      }
+      
+      if( fUseStripTimingCuts != 0 && fabs( tstrip - t0 ) > tcut * tsigma ) goodtime = false;
+
+      if( goodtime && fKeepStrip[hitindex[strip]] ){
+	islocalmax[strip] = true;
+	localmaxima.insert( strip );
+      }
+    }
+  }
+
+  //************************
+  // Compare peaks,
+  // and remove insignificant peaks
+  //************************
+
+  vector<int> peakstoerase;
+
+  // Loop over local maxima
+  for( std::set<UShort_t>::iterator i=localmaxima.begin(); i != localmaxima.end(); ++i ){
+    int stripmax = *i;
+
+    double ADCmax = ADC_strip[stripmax];
+    double prominence = ADCmax;
+
+    int striplo = stripmax, striphi = stripmax;
+    double ADCminright=ADCmax, ADCminleft=ADCmax;
+
+    bool higherpeakright=false,higherpeakleft=false;
+    int peakright = -1, peakleft = -1;
+
+    // scan to higher# strips
+    while( striplist.find( striphi+1 ) != striplist.end() ){
+      striphi++;
+
+      Double_t ADCtest = ADC_strip[striphi];
+
+      if( ADCtest < ADCminright && !higherpeakright ){
+	ADCminright = ADCtest;
+      }
+
+      if( islocalmax[striphi] && ADCtest > ADCmax ){
+	//then this peak is in a contiguous group with another higher peak to the right:
+ 	higherpeakright = true;
+	peakright = striphi;
+      }
+    }
+
+    // scan to lower# strips
+    while( striplist.find(striplo-1) != striplist.end() ){
+      striplo--;
+
+      Double_t ADCtest = ADC_strip[striplo];
+
+      if( ADCtest < ADCminleft && !higherpeakleft ){ 
+	ADCminleft = ADCtest;
+      }
+
+      if( islocalmax[striplo] && ADCtest > ADCmax ){
+	//then this peak is in a contiguous group with another higher peak to the left:
+	higherpeakleft = true;
+	peakleft = striplo;
+      }
+    }
+
+
+    // The strip RMS values represent the RMS of the AVERAGE of the samples.
+    // So the prominence threshold should be expressed in terms of the same thing to be consistent:
+    // RMS of the sum = (rms avg) * (number of samples)
+    double sigma_sum = double(fN_MPD_TIME_SAMP)*pedrms_strip[stripmax];
+
+
+    // What is the effect of deconvolution on noise? 
+    // It turns out from looking at the width of the pedestal peak
+    // in the deconvoluted ADCs from
+    // full readout events that the noise in the deconvoluted samples
+    // is about the same as the noise in the regular samples.
+    // HOWEVER: in this case we aren't working with the sum of six samples. So we need to
+    // modify "sigma" accordingly. We are generally working with the sum of two deconvoluted
+    // samples. ASSUMING the deconvoluted sample width is the same as the individual
+    // sample width, we have: 
+    if( fClusteringFlag == 1 ){
+      sigma_sum = pedrms_strip[stripmax] * fRMS_ConversionFactor;
+    }
+
+    // Mark which peaks to remove
+    bool peak_close = false;
+    if( !higherpeakleft ) ADCminleft = 0.0;
+    if( !higherpeakright ) ADCminright = 0.0;
+
+    if( higherpeakright || higherpeakleft ){
+      //this peak is contiguous with higher peaks on either the left or right or both:
+
+      //subtract the higher of the two valleys to get the prominence
+      prominence = ADCmax - std::max( ADCminleft, ADCminright ); 
+
+      if( higherpeakleft && std::abs( peakleft - stripmax ) <= 2*maxsep ) peak_close = true;
+      if( higherpeakright && std::abs( peakright - stripmax ) <= 2*maxsep ) peak_close = true;
+
+      if( peak_close && (prominence < fThresh_2ndMax_nsigma * sigma_sum ||
+			 prominence/ADCmax < fThresh_2ndMax_fraction ) ){
+	
+	peakstoerase.push_back( stripmax );
+      }	
+    }
+  }//loop over local maxima
+
+  // Remove insignificant peaks marked from above
+  for(int ipeak : peakstoerase){
+    localmaxima.erase( ipeak );
+    islocalmax[ipeak] = false;
+  }
+
+
+  //***********************
+  // Form/split clusters
+  //***********************
+
+  // Loop over remaining local maxima
+  for( auto i = localmaxima.begin(); i != localmaxima.end(); ++i ){
+    int stripmax = *i;
+    int striplo = stripmax;
+    int striphi = stripmax;
+
+    double ADCmax = ADC_strip[stripmax];
+
+    // Scan to the left
+    bool found_neighbor_low = true;
+    while( found_neighbor_low ){
+
+      found_neighbor_low = striplist.find( striplo - 1 ) != striplist.end() && stripmax - striplo < maxsep;
+
+      // Time difference
+      double Tdiff = fTmean[hitindex[striplo-1]] - fTmean[hitindex[stripmax]];
+      
+     if( fUseStripTimingCuts == 2 && fClusteringFlag == 0 ){ //Use "fitted" strip time instead:
+	Tdiff = fStripTfit[hitindex[striplo-1]] - fStripTfit[hitindex[stripmax]];
+      }
+      if( fClusteringFlag == 1 ){
+	Tdiff = fTmeanDeconv[hitindex[striplo-1]] - fTmeanDeconv[hitindex[stripmax]];
+      }
+
+
+     // FIXME: check if this step is needed for us
+      double Ccoeff = CorrCoeff( fN_MPD_TIME_SAMP, fADCsamples[hitindex[striplo-1]], fADCsamples[hitindex[stripmax]], 0 );
+
+     //correlation coefficient of the deconvoluted samples:
+     double Ccoeff_deconv = CorrCoeff( fN_MPD_TIME_SAMP, fADCsamples_deconv[hitindex[striplo-1]], fADCsamples_deconv[hitindex[stripmax]] );
+     
+     if( fUseStripTimingCuts != 0 && fabs(Tdiff) > fStripAddTcut_width ) found_neighbor_low = false;
+     
+     double Ccoeff_test = fClusteringFlag == 1 ? Ccoeff_deconv : Ccoeff;
+     
+     if( Ccoeff_test < fStripAddCorrCoeffCut ) found_neighbor_low = false;
+
+     if( found_neighbor_low ) striplo--;
+    }
+
+    // Repeat, Scan to the right
+    bool found_neighbor_high = true;
+    while( found_neighbor_high ){
+      
+      found_neighbor_high = striplist.find( striphi + 1 ) != striplist.end() && striphi - stripmax < maxsep;
+
+      // Time difference
+      double Tdiff = fTmean[hitindex[striphi+1]] - fTmean[hitindex[stripmax]];
+      
+     if( fUseStripTimingCuts == 2 && fClusteringFlag == 0 ){ //Use "fitted" strip time instead:
+	Tdiff = fStripTfit[hitindex[striphi+1]] - fStripTfit[hitindex[stripmax]];
+      }
+      if( fClusteringFlag == 1 ){
+	Tdiff = fTmeanDeconv[hitindex[striphi+1]] - fTmeanDeconv[hitindex[stripmax]];
+      }
+
+      double Ccoeff = CorrCoeff( fN_MPD_TIME_SAMP, fADCsamples[hitindex[striphi+1]], fADCsamples[hitindex[stripmax]], 0 );
+
+      double Ccoeff_deconv = CorrCoeff( fN_MPD_TIME_SAMP, fADCsamples_deconv[hitindex[striphi+1]], fADCsamples_deconv[hitindex[stripmax]] );
+
+     if( fUseStripTimingCuts != 0 && fabs(Tdiff) > fStripAddTcut_width ) found_neighbor_high = false;
+     
+     double Ccoeff_test = fClusteringFlag == 1 ? Ccoeff_deconv : Ccoeff;
+     
+     if( Ccoeff_test < fStripAddCorrCoeffCut ) found_neighbor_high = false;
+
+     if( found_neighbor_high ) striphi++;
+
+    }// scan to the right
+
+    // Fill out the cluster container
+    int nstrips = striphi - striplo + 1;
+
+    double sumx = 0.0, sumx2 = 0.0, sumwx = 0.0;    
+    double sumADC = 0.0, sumt = 0.0, sumt2 = 0.0;
+
+    map<int, double> splitfraction;
+    vector<double> adcsamples(fN_MPD_TIME_SAMP);
+    for(int isamp=0; isamp<fN_MPD_TIME_SAMP; isamp++)
+      adcsamples[isamp] = 0.0;
+
+      double maxpos = (stripmax + 0.5 - 0.5*Nstrips)*pitch + offset;
+
+    // loop over strips in cluster
+    for(int istrip = striplo; istrip <= striphi; istrip++) {
+      double sumweight = ADCmax/(1.0 + pow((stripmax-istrip)*pitch/fSigma_hitshape, 2));
+      double maxweight = sumweight;
+
+      // loop over nearby local maxima and calculate split fraction for each strip
+
+      for(int jstrip = istrip-maxsep; jstrip <= istrip+maxsep; jstrip++) {
+	if( localmaxima.find(jstrip) != localmaxima.end() && jstrip != stripmax) {
+	  sumweight += ADC_strip[jstrip]/(1.0 + pow((jstrip-istrip)*pitch/fSigma_hitshape, 2));
+	}
+      }//jstrip
+
+      //Fraction of this strip ADC signal assigned to the current cluster
+      splitfraction[istrip] = maxweight/sumweight; 
+      
+      // local hit position along the direction measured by these strips
+      double hitpos = (istrip + 0.5 - 0.5*Nstrips) * pitch + offset;
+
+      double ADCstrip = ADC_strip[istrip] * splitfraction[istrip];
+      double tstrip = Tmean_strip[istrip];
+
+      for(int isamp=0; isamp<fN_MPD_TIME_SAMP; isamp++) {
+	adcsamples[isamp] += fADCsamples[hitindex[istrip]][isamp]*splitfraction[istrip];
+      }
+      // FIXME: skip storing strip adc, adcsum.. add here if needed later see L3729
+      // prob better way is to add hit object
+
+      sumADC += fADCsums[hitindex[istrip]]*splitfraction[istrip];
+
+      if( std::abs(istrip - stripmax) <= std::max(UShort_t(1), std::min(maxsepcoord, maxsep)) ) {
+	sumx += hitpos * ADCstrip;
+	sumx2 += pow(hitpos,2) * ADCstrip;
+	sumwx += ADCstrip;
+	sumt += tstrip * ADCstrip;
+	sumt2 += pow(tstrip,2) * ADCstrip;
+      }      
+    }// istrip
+
+    double maxADC = 0.0;
+    int sampleMax;
+    for(int isamp=0; isamp<fN_MPD_TIME_SAMP; isamp++) {
+      if(isamp == 0 || adcsamples[isamp] > maxADC ) {
+	maxADC = adcsamples[isamp];
+	sampleMax = isamp;
+      }	
+    }
+
+    THcLADGEMCluster cluster;
+    cluster.SetMode(fClusteringFlag);
+    cluster.SetMPD(fStripRaw[hitindex[stripmax]]);
+    cluster.SetAPV(fStripADC_ID[hitindex[stripmax]]);
+    cluster.SetAxis(axis);
+    cluster.SetStrips(nstrips, striplo, striphi, stripmax);
+    cluster.SetPosition(sumx/sumwx);
+    cluster.SetPosMaxStrip(maxpos);
+
+    double mom = ((sumx/sumwx) - maxpos)/pitch;
+    double pos_sigma = sqrt(sumx2/sumwx - pow(sumx/sumwx, 2));
+    cluster.SetMoments(mom);
+    cluster.SetPosSigma(pos_sigma);
+
+    cluster.SetADCsum(sumADC); // ADCsum, ADCsumDeconv.... are determined by clustering flag
+    cluster.SetSampMax(sampleMax);
+    cluster.SetTime(sumt/sumwx, sqrt(sumt2/sumwx - pow(sumt/sumwx, 2)));
+
+    // Calculate fit time
+    double tfit = CalcFitTime( adcsamples, 20.0*sqrt(double(nstrips)) );
+    cluster.SetTimeFit(tfit);
+
+    if( axis == LADGEM::kUaxis )
+      fClustersU.push_back(cluster);
+    else
+      fClustersV.push_back(cluster);
+
+  }// loop over local maxima
+
+}
+
+//____________________________________________________________________________________
+void THcLADGEMModule::Find2DHits()
+{
+  Int_t nclustU = GetNClusters(0);
+  Int_t nclustV = GetNClusters(1);
+  if( nclustU > 0 && nclustV ) {
+    
+    for(int iu = 0; iu < nclustU; iu++) {
+      for(int iv = 0; iv < nclustV; iv++) {
+
+	double upos = fClustersU[iu].GetPos();
+	double vpos = fClustersV[iv].GetPos();
+	double umom = fClustersU[iu].GetMoments();
+	double vmom = fClustersV[iv].GetMoments();
+
+	TVector2 PosUV(upos, vpos);
+	TVector2 PosXY = UVtoXY( PosUV );
+
+	double xpos = PosXY.X();
+	double ypos = PosXY.Y();
+
+	double tmean = 0.5 * (fClustersU[iu].GetTime() + fClustersV[iv].GetTime());
+	double emean = 0.5 * (fClustersU[iu].GetADCsum() + fClustersV[iv].GetADCsum());
+	double tcorr = tmean;
+
+	double adcasym = (fClustersU[iu].GetADCsum() - fClustersV[iv].GetADCsum())/(fClustersU[iu].GetADCsum() + fClustersV[iv].GetADCsum());
+
+	// FIXME: missing correlation coefficient check
+
+	double tdiff = fClustersU[iu].GetTime() - fClustersV[iv].GetTime() - (fHitTimeMean[0] - fHitTimeMean[1]);
+
+	double dtcut = std::max( 3.5 * fTimeCutUVsigma, fTimeCutUVdiff);
+	double t0 = 0.5*(fHitTimeMean[0]+fHitTimeMean[1]);
+	double tcut = 3.5*0.5*(fHitTimeSigma[0]+fHitTimeSigma[1]);
+
+	if( fClusteringFlag == 1 ){
+	  tdiff = fClustersU[iu].GetTime() - fClustersV[iv].GetTime() - (fHitTimeMeanDeconv[0] - fHitTimeMeanDeconv[1]);
+	  dtcut = std::max( 3.5 * fTimeCutUVsigmaDeconv, fTimeCutUVdiffDeconv);
+	  t0 = 0.5*(fHitTimeMeanDeconv[0]+fHitTimeMeanDeconv[1]);
+	  tcut = 3.5*0.5*(fHitTimeSigmaDeconv[0]+fHitTimeSigmaDeconv[1]);
+	}
+
+	if( fClusteringFlag == 0 && fUseStripTimingCuts == 2) {
+	  tdiff = fClustersU[iu].GetTimeFit() - fClustersV[iv].GetTimeFit() - (fHitTimeMeanFit[0] - fHitTimeMeanFit[1]);
+	  dtcut = std::max( 3.5 * fTimeCutUVsigmaFit, fTimeCutUVdiffFit);
+	  t0 = 0.5*(fHitTimeMeanFit[0]+fHitTimeMeanFit[1]);
+	  tcut = 3.5*0.5*(fHitTimeSigmaFit[0]+fHitTimeSigmaFit[1]);
+	}
+
+	double asymcut = std::max(4.5*fADCasymSigma, fADCasymCut);
+	double adcthreshold = fThresholdClusterSum;
+	if( fClusteringFlag == 1 ) adcthreshold = fThresholdClusterSumDeconv;    
+
+	bool isgoodhit = true;
+
+	int nstripU = fClustersU[iu].GetNStrips();
+	int nstripV = fClustersV[iv].GetNStrips();
+
+	if(fabs(adcasym) > asymcut) isgoodhit = false;
+	if(nstripU < 2) isgoodhit = false;
+	if(nstripV < 2) isgoodhit = false;
+	if(emean < adcthreshold) isgoodhit = false;
+	if(fabs(tdiff) > dtcut) isgoodhit = false;
+	if(fabs(tmean-t0) > tcut) isgoodhit = false;
+
+	tcorr = tmean - t0;
+
+	// filter for 2D hits apply tdiff, adcasym, corrcoeff cuts based on
+	// fTimeCutUVdiff, fADCasymCut....
+
+	f2DHits.push_back( { xpos, ypos, tmean, tdiff, tcorr, isgoodhit, emean, adcasym } );
+
+      }//u clusters
+    }// v clusters
+  }
+
+}
+
+//____________________________________________________________________________________
+  Double_t THcLADGEMModule::CorrCoeff(int nsamples, const std::vector<double> &Usamples, const std::vector<double> &Vsamples, int firstsample )
+{
+
+  Double_t sumu = 0.0, sumv = 0.0, sumu2 = 0.0, sumv2 = 0.0, sumuv = 0.0;
+  if( (int)Usamples.size() < firstsample+nsamples || (int)Vsamples.size() < firstsample+nsamples) {
+    return -10.0; // nonsense value, correlation coefficient by defintion is -1 < c < 1
+  }    
+
+  for(int isamp = firstsample; isamp < firstsample+nsamples; isamp++) {
+    sumu += Usamples[isamp];
+    sumv += Vsamples[isamp];
+    sumu2 += pow(Usamples[isamp],2);
+    sumv2 += pow(Vsamples[isamp],2);
+    sumuv += Usamples[isamp]*Vsamples[isamp];
+  }
+
+  // mean and variance
+  double mu = sumu/(double)nsamples;
+  double mv = sumv/(double)nsamples;
+  double varu = sumu2/(double)nsamples - pow(mu,2);
+  double varv = sumv2/(double)nsamples - pow(mv,2);
+  double sigu = sqrt(varu);
+  double sigv = sqrt(varv);
+
+  return (sumuv - nsamples*mu*mv)/(nsamples*sigu*sigv);
 }
 
 //____________________________________________________________________________________
