@@ -177,7 +177,7 @@ Int_t THcLADGEM::Decode( const THaEvData& evdata )
 //____________________________________________________________
 Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
 {
-  cout << "THcLADGEM::CoarseProcess" << endl;
+  //  cout << "THcLADGEM::CoarseProcess" << endl;
 
   // track finding called here and added them into the TClonesArray tracks
   // In hcana, tracks are defined in the detector coordinate system
@@ -188,7 +188,6 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
     // Get 2D hits
     for( auto& hit : module->Get2DHits() ) {
   */      
-
   // Need to sort hits per layer
   // would be more convenient to add 2dhits to each layer directly
   // in GEMModule class
@@ -198,14 +197,16 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
   // compare z vertex, define variable for d_zvertex
   // assign track index for the hits
 
+  for( auto module : fModules ) 
+    module->CoarseProcess(tracks);
+
   return 0;
 }
 
 //____________________________________________________________
 Int_t THcLADGEM::FineProcess( TClonesArray& tracks )
 {
-  cout << "THcLADGEM::FineProcess" << endl;
-
+  //  cout << "THcLADGEM::FineProcess" << endl;
   return 0;
 }
 

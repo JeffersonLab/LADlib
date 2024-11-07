@@ -1626,14 +1626,11 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 //____________________________________________________________________________________
 Int_t THcLADGEMModule::CoarseProcess( TClonesArray& tracks )
 {
-  cout << "THcLADGEMModule::CoarseProcess" << endl;
+  //  cout << "THcLADGEMModule::CoarseProcess" << endl;
 
   // Find 1D clusters for each axis
   FindClusters1D(LADGEM::kUaxis); // +input ucenter, 0.5*(umax-umin) for u strips
   FindClusters1D(LADGEM::kVaxis); // +input ucenter, 0.5*(umax-umin) for v strips
-
-  cout << "*************1D CLUSTER INFO*************" << endl;
-  cout << fClustersU.size() << " " << GetNClusters(0) << endl;
 
   // Find 2D hits
   Find2DHits();
@@ -1645,8 +1642,6 @@ Int_t THcLADGEMModule::CoarseProcess( TClonesArray& tracks )
 Int_t THcLADGEMModule::FineProcess( TClonesArray& tracks )
 {
   // cout << "THcLADGEMModule::FineProcess" << endl;
-
-
 
   return 0;
 }

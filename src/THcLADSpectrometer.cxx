@@ -4,6 +4,10 @@
 #include "TList.h"
 #include "THaTrack.h"
 
+#ifdef WITH_DEBUG
+#include <iostream>
+#endif
+
 using namespace std;
 
 THcLADSpectrometer::THcLADSpectrometer( const char* name, const char* description ) :
@@ -11,8 +15,10 @@ THcLADSpectrometer::THcLADSpectrometer( const char* name, const char* descriptio
 {
   // default constructor 
   fTracks = 0;
+  fNtracks = 0;
+  fStagesDone = 0;
   fNonTrackingDetectors = new TList;
-
+  fListInit = kFALSE;
 }
 
 //____________________________________________________________________
@@ -34,6 +40,7 @@ void THcLADSpectrometer::ListInit()
 	 static_cast<THaDetector*>( next() )) {
 
     // We don't really have a tracking detector 
+    // fTrackingDetectors->Add( theDetector );
 
     fNonTrackingDetectors->Add( theDetector );
   }
@@ -77,22 +84,16 @@ Int_t THcLADSpectrometer::CoarseTrack()
 #endif
   }
 
+  fStatesDone |= kCoarseTrack;
   return 0;
 
 }
 */
 //____________________________________________________________________
-
-Int_t THcLADSpectrometer::Decode( const THaEvData& evdata )
-{
-
-  return THaApparatus::Decode(evdata);
-
-}
-
-//____________________________________________________________________
 Int_t THcLADSpectrometer::Reconstruct()
 {
+
+  // Fine Process
 
   TIter next( fNonTrackingDetectors );
   while( THaNonTrackingDetector* theNonTrackDetector =
@@ -107,6 +108,7 @@ Int_t THcLADSpectrometer::Reconstruct()
 #endif
   }
 
+  fStagesDone |= kReconstruct;
   return 0;
 }
 
@@ -129,7 +131,8 @@ Int_t THcLADSpectrometer::CoarseReconstruct()
     if ( fDebug>1 ) cout << "done.\n";
 #endif
   }
-
+  
+  fStagesDone |= kCoarseRecon;
   return 0;
 
 }

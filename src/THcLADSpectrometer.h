@@ -7,6 +7,7 @@
 //
 /////////////////////////////////////////////////
 
+#include "THaAnalysisObject.h"
 #include "THaApparatus.h"
 #include "TClonesArray.h"
 
@@ -19,17 +20,26 @@ class THcLADSpectrometer : public THaApparatus {
   
   virtual Int_t CoarseReconstruct();
   virtual Int_t Reconstruct();
-  virtual Int_t Decode( const THaEvData& );
+
+  enum EStagesDone {
+    kCoarseTrack = BIT(0),
+    kCoarseRecon = BIT(1),
+    kTracking    = BIT(2),
+    kReconstruct = BIT(3)
+  };
 
  protected:
 
   TClonesArray* fTracks;
   Int_t   fNtracks;
 
+  UInt_t fStagesDone;
+
   virtual Int_t DefineVariables( EMode mode = kDefine );
   virtual Int_t ReadDatabase( const TDatime& date );
 
   TList* fNonTrackingDetectors;
+  //  TList* fTrackingDetectors;
 
  private:
   Bool_t fListInit;
