@@ -225,7 +225,6 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
     }
   }
 
-  
   // Loop over all 2D hits and find track candidates
   /*
   for(auto& gemhit : f2DHits ) {

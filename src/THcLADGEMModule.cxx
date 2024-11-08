@@ -601,16 +601,13 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   fMaxNeighborsU_hitpos = 3;
   fMaxNeighborsV_hitpos = 3;
 
-
   // Parsing timing cuts stuff.... leave it out for now
 
-  // Geometry parameters
-  // THaDetectorBase::ReadGeometry
   /*
   const int ndim = 3;
   Double_t position[3]; //unit in m
   Double_t size[3];     // unit in m
-  Double_t angles[3];   // unit in deg
+  Double_t angle[3];   // unit in deg
   
   const DBRequest list[] = {
     { "_position",  &position,    kDouble, static_cast<UInt_t>(ndim)},
@@ -717,20 +714,40 @@ Int_t THcLADGEMModule::DefineVariables( EMode mode )
 {
   cout << "THcLADGEMModule::DefineVariables" << endl;
 
-  /*
   if( mode == kDefine && fIsSetup ) return kOK;
   fIsSetup = ( mode == kDefine );
 
-  // Cluster variables for each module
-  RVarDef vars[] = {
-    {"clust.nclus_u", "Number of X clusters", "fNClusU"},
-    {"clust.nclus_v", "Number of Y clusters", "fNClusV"},
-    { 0 }
+  // Strip level variables
+  //  RVarDef vars[] = {
+  VarDef vars[] = {
+    {"strip.nstripsfired", "Number of strips fired", kUInt, 0, &fNstrips_hit},
+    {"strip.nstripsfired_pos", "Number of strips fired pos", kUInt, 0, &fNstrips_hit_pos},
+    {"strip.nstripsfired_neg", "Number of strips fired neg", kUInt, 0, &fNstrips_hit_neg},
+    {"strip.crate", "strip crate number", kUInt, 0, &(fStripCrate[0]), &fNstrips_hit },
+    {"strip.mpd", "strip mpd number", kUInt, 0, &(fStripMPD[0]), &fNstrips_hit },
+    {"strip.adc_id", "strip adc channel number", kUInt, 0, &(fStripADC_ID[0]), &fNstrips_hit },
+    {"strip.istrip", "strip index", kUInt, 0, &(fStrip[0]), &fNstrips_hit},
+    {"strip.IsU", "U strip?", kUInt, 0, &(fStripIsU[0]), &fNstrips_hit },
+    {"strip.IsV", "V strip?", kUInt, 0, &(fStripIsV[0]), &fNstrips_hit },
+    {"strip.ADCsamples", "ADC samples (index = isamp+Nsamples*istrip)", kDouble, 0, &(fADCsamples1D[0]), &fNdecoded_ADCsamples },
+    {"strip.rawADCsamples", "raw ADC samples (no baseline subtraction)", kInt, 0, &(fRawADCsamples1D[0]), &fNdecoded_ADCsamples },
+    {"strip.DeconvADCsamples", "Deconvoluted ADC samples (index = isamp+Nsamples*istrip)", kDouble, 0, &(fADCsamplesDeconv1D[0]), &fNdecoded_ADCsamples },
+    {"strip.ADCsum", "Sum of ADC samples on a strip", kDouble, 0, &(fADCsums[0]), &fNstrips_hit },
+    {"strip.DeconvADCsum", "Sum of deconvoluted ADC samples on a strip", kDouble, 0, &(fADCsumsDeconv[0]), &fNstrips_hit },
+    {"strip.Tmean", "ADC-weighted mean strip time", kDouble, 0, &(fTmean[0]), &fNstrips_hit },
+    {"strip.Tsigma", "ADC-weighted rms strip time", kDouble, 0, &(fTsigma[0]), &fNstrips_hit },
+    {"strip.TmeanDeconv", "ADC-weighted mean deconvoluted strip time", kDouble, 0, &(fTmeanDeconv[0]), &fNstrips_hit },
+    {"strip.Tcorr", "Corrected strip time", kDouble, 0, &(fTcorr[0]), &fNstrips_hit },
+    {"strip.Tfit", "Fitted strip time", kDouble, 0, &(fStripTfit[0]), &fNstrips_hit },
+    {"strip.Tdiff", "time diff. wrt max strip in cluster (or perhaps cluster tmean)", kDouble, 0, &(fStripTdiff[0]), &fNstrips_hit },
+    { "strip.TSchi2", "chi2 of strip pulse shape (time samples) wrt average good strip pulse shape", kDouble, 0, &(fStripTSchi2[0]), &fNstrips_hit },
+    { "strip.TSprob", "p-Value wrt average good strip pulse shape", kDouble, 0, &(fStripTSprob[0]), &fNstrips_hit },
+    { "strip.CorrCoeff", "Correlation coefficient of strip wrt max strip on cluster (or perhaps cluster tmean)", kDouble, 0, &(fStripCorrCoeff[0]), &fNstrips_hit },
+    { "strip.ADCavg", "average of ADC samples on a strip", kDouble, 0, &(fStripADCavg[0]), &fNstrips_hit },
+    { nullptr }
   };
 
   return DefineVarsFromList( vars, mode );
-  */
-  return 0;
 }
 
 //____________________________________________________________________________________
