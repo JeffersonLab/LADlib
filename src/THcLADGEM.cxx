@@ -44,6 +44,13 @@ THcLADGEM::~THcLADGEM()
 }
 
 //____________________________________________________________
+void THcLADGEM::Clear( Option_t* opt)
+{
+  fClusOutData.clear();
+  f2DHits.clear();
+}
+
+//____________________________________________________________
 inline
 void THcLADGEM::ClearEvent()
 {
@@ -91,21 +98,21 @@ THaAnalysisObject::EStatus THcLADGEM::Init( const TDatime& date)
 //____________________________________________________________
 Int_t THcLADGEM::DefineVariables( EMode mode )
 {
+  if( mode == kDefine && fIsSetup ) return kOK;
+  fIsSetup = ( mode == kDefine );
 
-  // Initialize/register global variables
-  /*
-
-    RVarDef vars[] = {
-    {"", "", ""},
-    {"", "", ""},
-    {nullptr}
-    };
-
-    return DefineVarsFromList( vars, mode );
-   */
-
-  return 0;
-
+  // Cluster variables
+  RVarDef vars[] = {
+    {"clust.layer", "GEM Layer", "fClusOutData.layer"},
+    {"clust.axis", "U/V axis", "fClusOutData.axis"},
+    {"clust.mpd", "MPD ID", "fClusOutData.mpdid"},
+    {"clust.nstrip", "Number of strips in cluster", "fClusOutData.nstrip"},
+    {"clust.maxstrip", "Max strip of the given cluster", "fClusOutData.maxstrip"},
+    {"clust.adc", "Cluster ADC mean", "fClusOutData.adc"},
+    {"clust.time", "Cluster Time mean", "fClusOutData.time"},
+    { 0 }
+  };
+  return DefineVarsFromList( vars, mode );
 }
 
 //____________________________________________________________________________________
@@ -182,12 +189,6 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
   // track finding called here and added them into the TClonesArray tracks
   // In hcana, tracks are defined in the detector coordinate system
 
-  // Here we assume we only have two layers
-  /*
-  for( auto module : fModules ) {
-    // Get 2D hits
-    for( auto& hit : module->Get2DHits() ) {
-  */      
   // Need to sort hits per layer
   // would be more convenient to add 2dhits to each layer directly
   // in GEMModule class
@@ -197,10 +198,57 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
   // compare z vertex, define variable for d_zvertex
   // assign track index for the hits
 
-  for( auto module : fModules ) 
+  for( auto module : fModules ) {
     module->CoarseProcess(tracks);
 
+    // Cluster output handling
+    // U cluster
+    for( auto& cluster : module->GetClusters(0) ) {
+      fClusOutData.layer.push_back(cluster.GetLayer());
+      fClusOutData.mpdid.push_back(cluster.GetMPD());
+      fClusOutData.axis.push_back(cluster.GetAxis());
+      fClusOutData.nstrip.push_back(cluster.GetNStrips());
+      fClusOutData.maxstrip.push_back(cluster.GetStripMax());
+      fClusOutData.adc.push_back(cluster.GetADCsum());
+      fClusOutData.time.push_back(cluster.GetTime());
+    }
+      
+    // V cluster
+    for( auto& cluster : module->GetClusters(1) ) {
+      fClusOutData.layer.push_back(cluster.GetLayer());
+      fClusOutData.mpdid.push_back(cluster.GetMPD());
+      fClusOutData.axis.push_back(cluster.GetAxis());
+      fClusOutData.nstrip.push_back(cluster.GetNStrips());
+      fClusOutData.maxstrip.push_back(cluster.GetStripMax());
+      fClusOutData.adc.push_back(cluster.GetADCsum());
+      fClusOutData.time.push_back(cluster.GetTime());
+    }
+  }
+
+  
+  // Loop over all 2D hits and find track candidates
+  /*
+  for(auto& gemhit : f2DHits ) {
+    if(gemhit.IsGoodHit){
+	cout << gemhit.layer
+	<< " " << gemhit.posX
+	<< " " << gemhit.TimeMean
+	<< " " << gemhit.ADCMean << endl;
+    }
+  }
+  */
+
   return 0;
+}
+
+//____________________________________________________________
+void THcLADGEM::Add2DHits(Int_t ilayer, Double_t x, Double_t y,
+			  Double_t t, Double_t dt, Double_t tc,
+			  Bool_t goodhit, Double_t adc, Double_t adcasy)
+{
+  // FIXME:Add flag for filtering good hits?
+
+  f2DHits.push_back( {ilayer, x, y, t, dt, tc, goodhit, adc, adcasy} );
 }
 
 //____________________________________________________________

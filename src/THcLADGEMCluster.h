@@ -20,6 +20,10 @@ class THcLADGEMCluster : public TObject {
 
   Int_t    GetNHits() { return fNHits; }
   Int_t    GetNStrips() { return fNStrips; }
+  Int_t    GetStripLow() { return fStripLow;}
+  Int_t    GetStripHigh() { return fStripHigh; }
+  Int_t    GetStripMax() { return fStripMax; }
+
   Double_t GetADCsum() { return fADCsum; }
   Double_t GetPos()     { return fPos; }
   Double_t GetMoments()     { return fMoments; }

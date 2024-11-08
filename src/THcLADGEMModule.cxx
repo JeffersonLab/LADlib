@@ -89,10 +89,10 @@ void THcLADGEMModule::Clear( Option_t* opt )
 
   fClustersU.clear();
   fClustersV.clear();
-  f2DHits.clear();  
 
   fNClusU = 0;
   fNClusV = 0;
+
 }
 
 //____________________________________________________________________________________
@@ -103,6 +103,8 @@ THaAnalysisObject::EStatus THcLADGEMModule::Init( const TDatime& date )
   EStatus status;
   if( (status = THaSubDetector::Init(date)) )
     return fStatus = status;
+
+  fParent = GetParent();
 
   return fStatus = kOK;
 
@@ -715,25 +717,20 @@ Int_t THcLADGEMModule::DefineVariables( EMode mode )
 {
   cout << "THcLADGEMModule::DefineVariables" << endl;
 
+  /*
   if( mode == kDefine && fIsSetup ) return kOK;
   fIsSetup = ( mode == kDefine );
 
+  // Cluster variables for each module
   RVarDef vars[] = {
-    // {"clust.nclus", "Total number of clusters", ""},
     {"clust.nclus_u", "Number of X clusters", "fNClusU"},
     {"clust.nclus_v", "Number of Y clusters", "fNClusV"},
-    /*
-    {"clust.nstrip", "Number of strips in cluster", "fClustersU.THcLADGEMCluster.GetNStrips()"},
-    {"clust.axis", "U/V axis", ""},
-    {"clust.layer", "GEM Layer", ""},
-    {"clust.mpd", "MPD ID", ""},
-    {"clust.adc", "", ""},
-    {"clust.time", "", ""},
-    */
     { 0 }
   };
 
   return DefineVarsFromList( vars, mode );
+  */
+  return 0;
 }
 
 //____________________________________________________________________________________
@@ -2026,10 +2023,14 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis)
     double tfit = CalcFitTime( adcsamples, 20.0*sqrt(double(nstrips)) );
     cluster.SetTimeFit(tfit);
 
-    if( axis == LADGEM::kUaxis )
+    if( axis == LADGEM::kUaxis ){
       fClustersU.push_back(cluster);
-    else
+      fNClusU++;
+    }
+    else {
       fClustersV.push_back(cluster);
+      fNClusV++;
+    }
 
   }// loop over local maxima
 
@@ -2105,12 +2106,14 @@ void THcLADGEMModule::Find2DHits()
 	// filter for 2D hits apply tdiff, adcasym, corrcoeff cuts based on
 	// fTimeCutUVdiff, fADCasymCut....
 
-	f2DHits.push_back( { xpos, ypos, tmean, tdiff, tcorr, isgoodhit, emean, adcasym } );
+	static_cast<THcLADGEM*>(fParent)->Add2DHits(fLayer, xpos, ypos,
+						    tmean, tdiff, tcorr,
+						    isgoodhit, emean, adcasym);
 
       }//u clusters
     }// v clusters
   }
-
+  return;
 }
 
 //____________________________________________________________________________________
