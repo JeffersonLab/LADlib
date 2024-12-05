@@ -8,6 +8,7 @@
 #pragma link C++ class Decoder::MPDModuleVMEv4+;
 #pragma link C++ class THcLADSpectrometer+;
 #pragma link C++ class THcLADGEMCluster+;
+#pragma link C++ class THcLADGEMTrack+;
 #pragma link C++ class THcLADGEMModule+;
 #pragma link C++ class THcLADGEMPlane+;
 #pragma link C++ class THcLADGEM+;

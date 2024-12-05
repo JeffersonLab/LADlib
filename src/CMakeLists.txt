@@ -20,6 +20,7 @@ set(src
   THcLADGEMModule.cxx
   THcLADGEMPlane.cxx
   THcLADGEMCluster.cxx
+  THcLADGEMTrack.cxx
   )
 
 # Headers

@@ -9,10 +9,12 @@ using namespace std;
 ClassImp(THcLADGEMModule)
 
 //____________________________________________________________________________________
-THcLADGEMModule::THcLADGEMModule( const char* name, const char* description,
+THcLADGEMModule::THcLADGEMModule( const char* name, const char* description, Int_t imod,
 				  THaDetectorBase* parent ):
   THaSubDetector(name, description, parent)
 {
+
+  fModuleID = imod;
 
   // Default values of MPD map parameters
   fN_APV25_CHAN = 128; // number of channel per apv
@@ -39,7 +41,7 @@ THcLADGEMModule::~THcLADGEMModule()
 void THcLADGEMModule::Clear( Option_t* opt )
 {
 
-  cout << "THcLADGEMModule::Clear" << endl;
+  //  cout << "THcLADGEMModule::Clear" << endl;
   THaSubDetector::Clear(opt);
 
   fNstrips_hit = 0;
@@ -50,34 +52,17 @@ void THcLADGEMModule::Clear( Option_t* opt )
   fNdecoded_ADCsamples = 0;
   fIsDecoded = false;
 
-  //  fClustering1DIsDone = false;
-  //  fTrackPassedThrough = 0;
-
   //numbers of strips passing basic zero suppression thresholds and timing cuts:
   fNstrips_keep = 0;
   fNstrips_keepU = 0;
   fNstrips_keepV = 0;
+
   //numbers of strips passing basic zero suppression thresholds, timing cuts, and higher max. sample and strip sum thresholds for
   // local max:
   fNstrips_keep_lmax = 0;
   fNstrips_keep_lmaxU = 0;
   fNstrips_keep_lmaxV = 0;
   
-  //  fNclustU = 0;
-  //  fNclustV = 0;
-  //  fNclustU_pos = 0;
-  //  fNclustV_pos = 0;
-  //  fNclustU_neg = 0;
-  //  fNclustV_neg = 0;
-  //  fNclustU_total = 0;
-  //  fNclustV_total = 0;
-  //later we may need to check whether this is a performance bottleneck:
-  //  fUclusters.clear();
-  //  fVclusters.clear();
-  //  fN2Dhits = 0;
-  //similar here:
-  //  fHits.clear();
-
   fTrigTime = 0.0;
   
   fCM_online.assign(fN_MPD_TIME_SAMP,0.0);
@@ -99,7 +84,7 @@ void THcLADGEMModule::Clear( Option_t* opt )
 THaAnalysisObject::EStatus THcLADGEMModule::Init( const TDatime& date )
 {
 
-  cout << "THcLADGEMModule::Init()" << endl;
+  //  cout << "THcLADGEMModule::Init()" << endl;
   EStatus status;
   if( (status = THaSubDetector::Init(date)) )
     return fStatus = status;
@@ -113,7 +98,7 @@ THaAnalysisObject::EStatus THcLADGEMModule::Init( const TDatime& date )
 //____________________________________________________________________________________
 Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
 {
-  cout << "THcLADGEMModule::ReadDatabase" << endl;
+  //  cout << "THcLADGEMModule::ReadDatabase" << endl;
 
   string prefix = "lgem_";
   prefix += GetName(); // e.g. prefix: lgem_m0
@@ -172,7 +157,9 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   fTimeCutUVdiffFit = 30.0;
   fTimeCutUVsigmaFit = 3.0;
   
-  // default these offsets to zero: 
+  // default pitch = 0.0004 for all modules offset = zero: 
+  fUStripPitch = 0.0004;
+  fVStripPitch = 0.0004;
   fUStripOffset = 0.0;
   fVStripOffset = 0.0;
 
@@ -194,7 +181,6 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   fRMS_ConversionFactor = sqrt(fN_MPD_TIME_SAMP); //=2.45
 
   fAPVmapping = LADGEM::kUVA_XY; //default to UVA X/Y style APV mapping, but require this in the database::
-  InitAPVMAP();
 
   fModuleGain = 1.0;
   fCommonModeRange_nsigma = 5.0;
@@ -259,144 +245,35 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   fClusteringFlag = 0; //"standard" clustering based on sum of six time samples on a strip
   fDeconvolutionFlag = 0; //Default should be zero
 
+  // Default cut parameters related clustering
+  fThresh_2ndMax_nsigma = 3.0;
+  fThresh_2ndMax_fraction = 0.15;
 
-  std::vector<Double_t> rawpedu,rawpedv;
-  std::vector<Double_t> rawrmsu,rawrmsv;
+  fMaxNeighborsU_totalcharge = 4;
+  fMaxNeighborsV_totalcharge = 4;
+  fMaxNeighborsU_hitpos = 3;
+  fMaxNeighborsV_hitpos = 3;
 
-  fUStripOffset = 0.0;
-  fVStripOffset = 0.0;
+  //  std::vector<Double_t> rawpedu,rawpedv;
+  //  std::vector<Double_t> rawrmsu,rawrmsv;
 
-  /*
-    const DBRequest request[] = {
-    { "chanmap",        &fChanMapData,   kIntV, 0, 0, 0}, // mandatory: decode map info
-    { "apvmap",         &fAPVmapping,    kUInt, 0, 1, 1}, //optional, allow search up the tree if all modules in a setup have the same APV mapping
-    { "pedu",           &rawpedu,        kDoubleV, 0, 1, 0}, // optional raw pedestal info (u strips)
-    { "pedv",           &rawpedv,        kDoubleV, 0, 1, 0}, // optional raw pedestal info (v strips)
-    { "rmsu",           &rawrmsu,        kDoubleV, 0, 1, 0}, // optional pedestal rms info (u strips)
-    { "rmsv",           &rawrmsv,        kDoubleV, 0, 1, 0}, // optional pedestal rms info (v strips)
-    { "layer",          &fLayer,         kUShort, 0, 0, 0}, // mandatory: logical tracking layer must be specified for every module:
-    { "nstripsu",       &fNstripsU,     kUInt, 0, 0, 1}, //mandatory: number of strips in module along U axis
-    { "nstripsv",       &fNstripsV,     kUInt, 0, 0, 1}, //mandatory: number of strips in module along V axis
-    { "uangle",         &fUAngle,       kDouble, 0, 0, 1}, //mandatory: Angle of "U" strips wrt X axis
-    { "vangle",         &fVAngle,       kDouble, 0, 0, 1}, //mandatory: Angle of "V" strips wrt X axis
-    { "uoffset",        &fUStripOffset, kDouble, 0, 1, 1}, //optional: position of first U strip
-    { "voffset",        &fVStripOffset, kDouble, 0, 1, 1}, //optional: position of first V strip
-    { "upitch",         &fUStripPitch,  kDouble, 0, 0, 1}, //mandatory: Pitch of U strips
-    { "vpitch",         &fVStripPitch,  kDouble, 0, 0, 1}, //mandatory: Pitch of V strips
-    { "ugain",          &fUgain,        kDoubleV, 0, 1, 0}, //(optional): Gain of U strips by APV card (ordered by strip position, NOT by order of appearance in decode map)
-    { "vgain",          &fVgain,        kDoubleV, 0, 1, 0}, //(optional): Gain of V strips by APV card (ordered by strip position, NOT by order of appearance in decode map)
-    { "modulegain",     &fModuleGain,   kDouble, 0, 1, 1},
-    { "threshold_sample",  &fThresholdSample, kDouble, 0, 1, 1}, //(optional): threshold on max. ADC sample to keep strip (baseline-subtracted)
-    { "threshold_stripsum", &fThresholdStripSum, kDouble, 0, 1, 1}, //(optional): threshold on sum of ADC samples on a strip (baseline-subtracted)
-    { "threshold_clustersum", &fThresholdClusterSum, kDouble, 0, 1, 1}, //(optional): threshold on sum of all ADCs over all strips in a cluster (baseline-subtracted)
-    { "threshold_sample_deconv", &fThresholdSampleDeconv, kDouble, 0, 1, 1 },
-    { "threshold_maxcombo_deconv", &fThresholdDeconvADCMaxCombo, kDouble, 0, 1, 1 },
-    { "threshold_clustersum_deconv", &fThresholdClusterSumDeconv, kDouble, 0, 1, 1 },
-    { "ADCasym_cut", &fADCasymCut, kDouble, 0, 1, 1}, //(optional): filter 2D hits by ADC asymmetry, |Asym| < cut
-    { "deltat_cut", &fTimeCutUVdiff, kDouble, 0, 1, 1}, //(optional): filter 2D hits by U/V time difference
-    { "corrcoeff_cut", &fCorrCoeffCut, kDouble, 0, 1, 1},
-    { "filterflag1D", &fFiltering_flag1D, kInt, 0, 1, 1},
-    { "filterflag2D", &fFiltering_flag2D, kInt, 0, 1, 1},
-    { "peakprominence_minsigma", &fThresh_2ndMax_nsigma, kDouble, 0, 1, 1}, //(optional): reject overlapping clusters with peak prominence less than this number of sigmas
-    { "peakprominence_minfraction", &fThresh_2ndMax_fraction, kDouble, 0, 1, 1}, //(optional): reject overlapping clusters with peak prominence less than this fraction of height of nearby higher peak
-    { "maxnu_charge", &fMaxNeighborsU_totalcharge, kUShort, 0, 1, 1}, //(optional): cluster size restriction along U for total charge calculation
-    { "maxnv_charge", &fMaxNeighborsV_totalcharge, kUShort, 0, 1, 1}, //(optional): cluster size restriction along V for total charge calculation
-    { "maxnu_pos", &fMaxNeighborsU_hitpos, kUShort, 0, 1, 1}, //(optional): cluster size restriction for position reconstruction
-    { "maxnv_pos", &fMaxNeighborsV_hitpos, kUShort, 0, 1, 1}, //(optional): cluster size restriction for position reconstruction
-    { "sigmahitshape", &fSigma_hitshape, kDouble, 0, 1, 1}, //(optional): width parameter for cluster-splitting algorithm
-    { "zerosuppress", &zerosuppress_flag, kUInt, 0, 1, 1}, //(optional, search): toggle offline zero suppression (default = true).
-    { "zerosuppress_nsigma", &fZeroSuppressRMS, kDouble, 0, 1, 1}, //(optional, search):
-    { "do_neg_signal_study", &negsignalstudy_flag, kUInt, 0, 1, 1}, //(optional, search): toggle doing negative signal analysis
-    { "onlinezerosuppress", &onlinezerosuppress_flag, kUInt, 0, 1, 1}, //(optional, search)
-    { "commonmode_meanU", &fCommonModeMeanU, kDoubleV, 0, 1, 0}, //(optional, don't search)
-    { "commonmode_meanV", &fCommonModeMeanV, kDoubleV, 0, 1, 0}, //(optional, don't search)
-    { "commonmode_rmsU", &fCommonModeRMSU, kDoubleV, 0, 1, 0}, //(optional, don't search)
-    { "commonmode_rmsV", &fCommonModeRMSV, kDoubleV, 0, 1, 0}, //(optional, don't search)
-    { "commonmode_flag", &fCommonModeFlag, kInt, 0, 1, 1}, //optional, search up the tree
-    { "commonmode_online_flag", &fCommonModeOnlFlag, kInt, 0, 1, 1}, //optional, search up the tree
-    { "commonmode_nstriplo", &fCommonModeNstripRejectLow, kInt, 0, 1, 1}, //optional, search up the tree:
-    { "commonmode_nstriphi", &fCommonModeNstripRejectHigh, kInt, 0, 1, 1}, //optional, search:
-    { "commonmode_niter", &fCommonModeNumIterations, kInt, 0, 1, 1},
-    { "commonmode_minstrips", &fCommonModeMinStripsInRange, kInt, 0, 1, 1},
-    { "commonmode_range_nsigma", &fCommonModeRange_nsigma, kDouble, 0, 1, 1},
-    { "commonmode_danning_nsigma_cut", &fCommonModeDanningMethod_NsigmaCut, kDouble, 0, 1, 1 },
-    { "plot_common_mode", &cmplots_flag, kInt, 0, 1, 1},
-    { "plot_event_info", &eventinfoplots_flag, kInt, 0, 1, 1},
-    { "chan_cm_flags", &fChan_CM_flags, kUInt, 0, 1, 1}, //optional, search up the tree: must match the value in crate map!
-    { "chan_timestamp_low", &fChan_TimeStamp_low, kUInt, 0, 1, 1},
-    { "chan_timestamp_high", &fChan_TimeStamp_high, kUInt, 0, 1, 1},
-    { "chan_event_count", &fChan_MPD_EventCount, kUInt, 0, 1, 1},
-    { "pedsub_online", &fPedSubFlag, kInt, 0, 1, 1},
-    { "max2Dhits", &fMAX2DHITS, kUInt, 0, 1, 1}, //optional, search up tree
-    { "usestriptimingcut", &fUseStripTimingCuts, kInt, 0, 1, 1 },
-    { "useTSchi2cut", &useTSchi2cut, kInt, 0, 1, 1 },
-    { "maxstrip_t0", &t0_temp, kDoubleV, 0, 1, 1 },
-    { "maxstrip_t0_deconv", &t0_deconv_temp, kDoubleV, 0, 1, 1 },
-    { "maxstrip_t0_fit", &t0_fit_temp, kDoubleV, 0, 1, 1 },
-    { "maxstrip_tcut", &tcut_temp, kDoubleV, 0, 1, 1 },
-    { "maxstrip_tcut_deconv", &tcut_deconv_temp, kDoubleV, 0, 1, 1 },
-    { "maxstrip_tcut_fit", &tcut_fit_temp, kDoubleV, 0, 1, 1 },
-    { "maxstrip_tsigma", &tsigma_temp, kDoubleV, 0, 1, 1 },
-    { "maxstrip_tsigma_deconv", &tsigma_deconv_temp, kDoubleV, 0, 1, 1 },
-    { "maxstrip_tsigma_fit", &tsigma_fit_temp, kDoubleV, 0, 1, 1 },
-    { "addstrip_tcut", &fStripAddTcut_width, kDouble, 0, 1, 1 },
-    { "addstrip_ccor_cut", &fStripAddCorrCoeffCut, kDouble, 0, 1, 1 },
-    { "goodstrip_TSfrac_mean", &TSfrac_mean_temp, kDoubleV, 0, 1, 1 },
-    { "goodstrip_TSfrac_sigma", &TSfrac_sigma_temp, kDoubleV, 0, 1, 1 },
-    { "suppressfirstlast", &suppressfirstlast, kInt, 0, 1, 1 },
-    { "use_commonmode_rolling_average", &usecommonmoderollingaverage, kInt, 0, 1, 1 },
-    { "commonmode_nevents_lookback", &fNeventsCommonModeLookBack, kUInt, 0, 1, 1 },
-    { "correct_common_mode", &correctcommonmode, kInt, 0, 1, 1 },
-    { "correct_common_mode_minstrips", &fCorrectCommonModeMinStrips, kUInt, 0, 1, 1 },
-    { "correct_common_mode_nsigma", &fCorrectCommonMode_Nsigma, kDouble, 0, 1, 1 },
-    { "commonmode_binwidth_nsigma", &fCommonModeBinWidth_Nsigma, kDouble, 0, 1, 1 },
-    { "commonmode_scanrange_nsigma", &fCommonModeScanRange_Nsigma, kDouble, 0, 1, 1 },
-    { "commonmode_stepsize_nsigma", &fCommonModeStepSize_Nsigma, kDouble, 0, 1, 1 },
-    { "deconvolution_tau", &fStripTau, kDouble, 0, 1, 1 },
-    { "CMbiasU", &fCMbiasU, kDoubleV, 0, 1, 1 },
-    { "CMbiasV", &fCMbiasV, kDoubleV, 0, 1, 1 },
-    { "clustering_flag", &fClusteringFlag, kInt, 0, 1, 1 },
-    { "deconvolution_flag", &fDeconvolutionFlag, kInt, 0, 1, 1 },
-    { "maxtrigtime_correction", &fMaxTrigTimeCorrection, kDouble, 0, 1, 1 },
-    { "trigtime_slope", &fTrigTimeSlope, kDouble, 0, 1, 1 },
-    { "ADCasym_sigma", &fADCasymSigma, kDouble, 0, 1, 1 },
-    { "deltat_sigma", &fTimeCutUVsigma, kDouble, 0, 1, 1 },
-    { "deltat_cut_deconv", &fTimeCutUVdiffDeconv, kDouble, 0, 1, 1 },
-    { "deltat_sigma_deconv", &fTimeCutUVsigmaDeconv, kDouble, 0, 1, 1 },
-    { "deltat_cut_fit", &fTimeCutUVdiffFit, kDouble, 0, 1, 1 },
-    { "deltat_sigma_fit", &fTimeCutUVsigmaFit, kDouble, 0, 1, 1 },
-    { "corrcoeff_cut_deconv", &fCorrCoeffCutDeconv, kDouble, 0, 1, 1 },
-    { "ADCratio_sigma", &fADCratioSigma, kDouble, 0, 1, 1 },
-    { "HitTimeMean", &t0hit_temp, kDoubleV, 0, 1, 1 },
-    { "HitTimeSigma", &tsigmahit_temp, kDoubleV, 0, 1, 1 },
-    { "HitTimeMeanDeconv", &t0hit_deconv_temp, kDoubleV, 0, 1, 1 },
-    { "HitTimeSigmaDeconv", &tsigmahit_deconv_temp, kDoubleV, 0, 1, 1 },
-    { "HitTimeMeanFit", &t0hit_fit_temp, kDoubleV, 0, 1, 1 },
-    { "HitTimeSigmaFit", &tsigmahit_fit_temp, kDoubleV, 0, 1, 1 },
-    { "sigma_tcorr", &fSigmaHitTimeAverageCorrected, kDouble, 0, 1, 1 },
-    {0}
-    };
-    status = LoadDB( file, date, request, fPrefix, 1 ); //The "1" after fPrefix means search up the tree
+  for(int i=0; i<3; i++)
+    fCenter[i] = 0.;   // init
 
-    if( status != 0 ) {
-      fclose(file);
-      return status;
-      }
-  */
-
-  // Test HallC style DB parsing
-  const DBRequest list[] = {
+  // Geometry
+  const DBRequest list1[] = {
     { "_layer",     &fLayer,      kInt, 0, 1},
     { "_apvmap",    &fAPVmapping, kInt, 0, 1},
     { "_nstripsu",  &fNstripsU,   kInt, 0, 1},
     { "_nstripsv",  &fNstripsV,   kInt, 0, 1},
     { "_uangle",    &fUAngle,     kDouble, 0, 1}, //mandatory: Angle of "U" strips wrt X axis
     { "_vangle",    &fVAngle,     kDouble, 0, 1}, //mandatory: Angle of "V" strips wrt X axis
-    { "_upitch",    &fUStripPitch,  kDouble, 0, 1}, //mandatory: Pitch of U strips
-    { "_vpitch",    &fVStripPitch,  kDouble, 0, 1}, //mandatory: Pitch of V strips
+    { "_position",  fCenter,      kDouble, static_cast<UInt_t>(3)},
     {0}
   };
-  gHcParms->LoadParmValues((DBRequest*)&list, prefix.c_str());
+  gHcParms->LoadParmValues((DBRequest*)&list1, prefix.c_str());
+
+  InitAPVMAP();
 
   //prevent the user from defining something silly for the common-mode stuff:
   fCommonModeNstripRejectLow = std::min( 50, std::max( 0, fCommonModeNstripRejectLow ) );
@@ -405,7 +282,6 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   fCommonModeMinStripsInRange = std::min( fN_APV25_CHAN-25, std::max(1, fCommonModeMinStripsInRange ) );
 
   double x = fSamplePeriod/fStripTau;
-  
   fDeconv_weights[0] = exp( x - 1.0 )/x; //~1.32
   fDeconv_weights[1] = -2.0*exp(-1.0)/x; //~ -1.72
   fDeconv_weights[2] = exp(-1.0-x)/x; //0.56
@@ -592,32 +468,6 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
     //fPedSubFlag = 0;
   }
 
-  // Default cut parameters related clustering
-  fThresh_2ndMax_nsigma = 3.0;
-  fThresh_2ndMax_fraction = 0.15;
-
-  fMaxNeighborsU_totalcharge = 4;
-  fMaxNeighborsV_totalcharge = 4;
-  fMaxNeighborsU_hitpos = 3;
-  fMaxNeighborsV_hitpos = 3;
-
-  // Parsing timing cuts stuff.... leave it out for now
-
-  /*
-  const int ndim = 3;
-  Double_t position[3]; //unit in m
-  Double_t size[3];     // unit in m
-  Double_t angle[3];   // unit in deg
-  
-  const DBRequest list[] = {
-    { "_position",  &position,    kDouble, static_cast<UInt_t>(ndim)},
-    { "_size",      &size,        kDouble, static_cast<UInt_t>(ndim)},
-    { "_angle",     &angle,       kDouble, static_cast<UInt_t>(ndim)},
-    {0}
-  };
-  gHcParms->LoadParmValues((DBRequest*)&list, prefix.c_str());
-  */
-
   return 0;
 
 }
@@ -712,13 +562,12 @@ Int_t THcLADGEMModule::GetChannelMap(const char* prefix, const TDatime& date)
 //____________________________________________________________________________________
 Int_t THcLADGEMModule::DefineVariables( EMode mode )
 {
-  cout << "THcLADGEMModule::DefineVariables" << endl;
+  //  cout << "THcLADGEMModule::DefineVariables" << endl;
 
   if( mode == kDefine && fIsSetup ) return kOK;
   fIsSetup = ( mode == kDefine );
 
   // Strip level variables
-  //  RVarDef vars[] = {
   VarDef vars[] = {
     {"strip.nstripsfired", "Number of strips fired", kUInt, 0, &fNstrips_hit},
     {"strip.nstripsfired_pos", "Number of strips fired pos", kUInt, 0, &fNstrips_hit_pos},
@@ -772,7 +621,7 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 
   int apvcounter = 0;
   bool firstevent = true;
-  UInt_t FirstEvCnt = 0;
+  //  UInt_t FirstEvCnt = 0;
     
   for( std::vector<mpdmap_t>::iterator it = fMPDmap.begin(); it != fMPDmap.end(); it++) {
     Int_t effChan = it->mpd_id << 4 | it->adc_id; //left-shift mpd id by 4 bits and take the bitwise OR with ADC_id to uniquely identify the APV card.
@@ -791,7 +640,7 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 	  UInt_t EvCnt = evdata.GetData( it->crate, it->slot, fChan_MPD_EventCount, ihit );
 
 	  if( firstevent ){
-	    FirstEvCnt = EvCnt;
+	    // FirstEvCnt = EvCnt;
 	    firstevent = false;
 	  }
 	  
@@ -908,8 +757,8 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 	UInt_t MPDdebugwords[3];
 	
 	for( unsigned int ihit=0; ihit<nhits_MPD_debug; ihit++ ){
-	  UInt_t chan_temp = evdata.GetRawData( it->crate, it->slot, fChan_MPD_Debug, ihit );
-	  UInt_t word_temp = evdata.GetData( it->crate, it->slot, fChan_MPD_Debug, ihit );
+	  int chan_temp = evdata.GetRawData( it->crate, it->slot, fChan_MPD_Debug, ihit );
+	  int word_temp = evdata.GetData( it->crate, it->slot, fChan_MPD_Debug, ihit );
 	  if( chan_temp == effChan && wcount < 3 ){
 	    MPDdebugwords[wcount++] = word_temp;
 	  }
@@ -1016,7 +865,6 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 	      }
 
 	      double cm_mean;
-
 	      UInt_t iAPV = it->pos;
 
 	      if(!CM_OUT_OF_RANGE || fPedestalMode){
@@ -1188,9 +1036,8 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 	int strip = Strip[fN_MPD_TIME_SAMP * istrip];
 
 	//"pedtemp" is only used to fill pedestal histograms as of now:
-	double pedtemp = ( axis == LADGEM::kUaxis ) ? fPedestalU[strip] : fPedestalV[strip];
-
-	if( fPedSubFlag != 0 && !fIsMC && !fPedestalMode ) pedtemp = 0.0;
+	// double pedtemp = ( axis == LADGEM::kUaxis ) ? fPedestalU[strip] : fPedestalV[strip];
+	// if( fPedSubFlag != 0 && !fIsMC && !fPedestalMode ) pedtemp = 0.0;
 
 	double rmstemp = ( axis == LADGEM::kUaxis ) ? fPedRMSU[strip] : fPedRMSV[strip];
 	double gaintemp = ( axis == LADGEM::kUaxis ) ? fUgain[strip/fN_APV25_CHAN] : fVgain[strip/fN_APV25_CHAN];
@@ -1641,7 +1488,6 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 Int_t THcLADGEMModule::CoarseProcess( TClonesArray& tracks )
 {
   //  cout << "THcLADGEMModule::CoarseProcess" << endl;
-
   // Find 1D clusters for each axis
   FindClusters1D(LADGEM::kUaxis); // +input ucenter, 0.5*(umax-umin) for u strips
   FindClusters1D(LADGEM::kVaxis); // +input ucenter, 0.5*(umax-umin) for v strips
@@ -1686,7 +1532,7 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis)
 
   for(int ihit = 0; ihit < fNstrips_hit; ihit++) {
     if( fAxis[ihit] == axis ){
-
+      
       bool newstrip = (striplist.insert( fStrip[ihit] ) ).second;
       
       if( newstrip ){ //should always be true:
@@ -1839,7 +1685,6 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis)
     // RMS of the sum = (rms avg) * (number of samples)
     double sigma_sum = double(fN_MPD_TIME_SAMP)*pedrms_strip[stripmax];
 
-
     // What is the effect of deconvolution on noise? 
     // It turns out from looking at the width of the pedestal peak
     // in the deconvoluted ADCs from
@@ -1910,8 +1755,7 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis)
 	Tdiff = fTmeanDeconv[hitindex[striplo-1]] - fTmeanDeconv[hitindex[stripmax]];
       }
 
-
-     // FIXME: check if this step is needed for us
+     // FIXME: check if we need this cut
       double Ccoeff = CorrCoeff( fN_MPD_TIME_SAMP, fADCsamples[hitindex[striplo-1]], fADCsamples[hitindex[stripmax]], 0 );
 
      //correlation coefficient of the deconvoluted samples:
@@ -1967,7 +1811,7 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis)
     for(int isamp=0; isamp<fN_MPD_TIME_SAMP; isamp++)
       adcsamples[isamp] = 0.0;
 
-      double maxpos = (stripmax + 0.5 - 0.5*Nstrips)*pitch + offset;
+    double maxpos = (stripmax + 0.5 - 0.5*Nstrips)*pitch + offset;
 
     // loop over strips in cluster
     for(int istrip = striplo; istrip <= striphi; istrip++) {
@@ -2049,6 +1893,12 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis)
       fNClusV++;
     }
 
+    /*
+      {
+	cout << "strip: " << fLayer << " " << axis << " " << nstrips <<  " " << striplo << " " << striphi << " " << stripmax
+	     << " pos: " << sumx/sumwx << " " << maxpos << " " << " " << sumADC << " " << sumt/sumwx << " " << GetName() << endl;
+      }
+    */
   }// loop over local maxima
 
 }
@@ -2058,6 +1908,7 @@ void THcLADGEMModule::Find2DHits()
 {
   Int_t nclustU = GetNClusters(0);
   Int_t nclustV = GetNClusters(1);
+
   if( nclustU > 0 && nclustV ) {
     
     for(int iu = 0; iu < nclustU; iu++) {
@@ -2065,14 +1916,15 @@ void THcLADGEMModule::Find2DHits()
 
 	double upos = fClustersU[iu].GetPos();
 	double vpos = fClustersV[iv].GetPos();
-	double umom = fClustersU[iu].GetMoments();
-	double vmom = fClustersV[iv].GetMoments();
+	// double umom = fClustersU[iu].GetMoments();
+	// double vmom = fClustersV[iv].GetMoments();
 
 	TVector2 PosUV(upos, vpos);
-	TVector2 PosXY = UVtoXY( PosUV );
+	TVector2 PosXY = UVtoXY( PosUV ); // no changes if using XY GEM
 
-	double xpos = PosXY.X();
-	double ypos = PosXY.Y();
+	double xpos = PosXY.X() + fCenter[0]; // FIXME: check how strip numbers are defined
+	double ypos = PosXY.Y() + fCenter[1];
+	double zpos = fCenter[2];
 
 	double tmean = 0.5 * (fClustersU[iu].GetTime() + fClustersV[iv].GetTime());
 	double emean = 0.5 * (fClustersU[iu].GetADCsum() + fClustersV[iv].GetADCsum());
@@ -2080,7 +1932,7 @@ void THcLADGEMModule::Find2DHits()
 
 	double adcasym = (fClustersU[iu].GetADCsum() - fClustersV[iv].GetADCsum())/(fClustersU[iu].GetADCsum() + fClustersV[iv].GetADCsum());
 
-	// FIXME: missing correlation coefficient check
+	// FIXME: correlation coefficient cut not included here
 
 	double tdiff = fClustersU[iu].GetTime() - fClustersV[iv].GetTime() - (fHitTimeMean[0] - fHitTimeMean[1]);
 
@@ -2123,12 +1975,15 @@ void THcLADGEMModule::Find2DHits()
 	// filter for 2D hits apply tdiff, adcasym, corrcoeff cuts based on
 	// fTimeCutUVdiff, fADCasymCut....
 
-	static_cast<THcLADGEM*>(fParent)->Add2DHits(fLayer, xpos, ypos,
-						    tmean, tdiff, tcorr,
-						    isgoodhit, emean, adcasym);
+	// Add to 2Dhit list
+	if(nstripU > 1 && nstripV > 1){
+	  static_cast<THcLADGEM*>(fParent)->Add2DHits(fLayer, xpos, ypos, zpos,
+						      tmean, tdiff, tcorr,
+						      isgoodhit, emean, adcasym);
+	}
 
-      }//u clusters
-    }// v clusters
+      }//v clusters
+    }// u clusters
   }
   return;
 }
@@ -2355,7 +2210,7 @@ void THcLADGEMModule::UpdateRollingAverage( int iapv, double value, std::vector<
   }
 }
 //____________________________________________________________________________________
-double THcLADGEMModule::GetCommonModeCorrection( UInt_t isamp, const mpdmap_t &apvinfo, UInt_t &ngoodhits, const UInt_t &nhits, bool fullreadout, Int_t flag ){
+double THcLADGEMModule::GetCommonModeCorrection( int isamp, const mpdmap_t &apvinfo, UInt_t &ngoodhits, const UInt_t &nhits, bool fullreadout, Int_t flag ){
 
   if( !fCorrectCommonMode ){
     return 0.0;
@@ -2398,7 +2253,7 @@ double THcLADGEMModule::GetCommonModeCorrection( UInt_t isamp, const mpdmap_t &a
   //a relevant question here is whether we should put an UPPER limit on the ADC value to attempt a correction?
   //It seems the CM calculations below will take care of imposing any relevant upper limits.
   
-  for( int ihit=0; ihit<nhits; ihit++ ){
+  for( UInt_t ihit=0; ihit<nhits; ihit++ ){
     int iraw=isamp + fN_MPD_TIME_SAMP*ihit;
     
     //Subtract the "online" version of the common-mode for this full readout event.
@@ -2647,7 +2502,7 @@ double THcLADGEMModule::GetCommonMode( UInt_t isamp, Int_t flag, const mpdmap_t 
       exit(-1);
     }
     
-    for( int ihit=0; ihit<nhits; ihit++ ){
+    for( UInt_t ihit=0; ihit<nhits; ihit++ ){
       int iraw = isamp + fN_MPD_TIME_SAMP * ihit;
 
       sortedADCs[ihit] = fPedSubADC_APV[ iraw ];
@@ -2671,7 +2526,7 @@ double THcLADGEMModule::GetCommonMode( UInt_t isamp, Int_t flag, const mpdmap_t 
     double cm_rms = ( apvinfo.axis == LADGEM::kUaxis ) ? fCommonModeRMSU[iAPV] : fCommonModeRMSV[iAPV];
 
     //for now these are unused. Comment out to suppress compiler warning.
-    double DBmean = cm_mean;
+    // double DBmean = cm_mean;
     double DBrms = cm_rms;
     
     // Not sure if we SHOULD update cm_mean and cm_rms in this context because then the logic can become somewhat circular/self-referential:
@@ -2705,7 +2560,7 @@ double THcLADGEMModule::GetCommonMode( UInt_t isamp, Int_t flag, const mpdmap_t 
     int ibinmax=-1;
     int maxcounts=0;
     //Now loop on all the strips and fill the histogram: 
-    for( int ihit=0; ihit<nhits; ihit++ ){
+    for( UInt_t ihit=0; ihit<nhits; ihit++ ){
       double ADC = fPedSubADC_APV[ isamp + fN_MPD_TIME_SAMP * ihit ];
       //calculate the lowest bin containing this ADC value. 
       int nearestbin = std::max(0,std::min(nbins-1, int(round( (ADC - scan_min)/stepsize ) ) ) );
@@ -2752,7 +2607,7 @@ double THcLADGEMModule::GetCommonMode( UInt_t isamp, Int_t flag, const mpdmap_t 
     double CM_2 = 0;
     int n_keep = 0;
     
-    for( int ihit=0; ihit<nhits; ihit++ ){
+    for( UInt_t ihit=0; ihit<nhits; ihit++ ){
       int iraw=isamp + fN_MPD_TIME_SAMP * ihit;
       
       double ADCtemp = fPedSubADC_APV[iraw];
@@ -2766,7 +2621,7 @@ double THcLADGEMModule::GetCommonMode( UInt_t isamp, Int_t flag, const mpdmap_t 
     CM_1 /= n_keep;
     n_keep = 0;
     
-    for( int ihit=0; ihit<nhits; ihit++ ){
+    for( UInt_t ihit=0; ihit<nhits; ihit++ ){
       int iraw=isamp + fN_MPD_TIME_SAMP * ihit;
       
       double ADCtemp = fPedSubADC_APV[iraw];
@@ -2794,7 +2649,7 @@ double THcLADGEMModule::GetCommonMode( UInt_t isamp, Int_t flag, const mpdmap_t 
       double sumADCinrange = 0.0;
       int n_keep = 0;
 
-      for( int ihit=0; ihit<nhits; ihit++ ){
+      for( UInt_t ihit=0; ihit<nhits; ihit++ ){
 	int iraw=isamp + fN_MPD_TIME_SAMP * ihit;
 	
 	double ADCtemp = fPedSubADC_APV[iraw];
@@ -2839,7 +2694,7 @@ double THcLADGEMModule::GetCommonMode( UInt_t isamp, Int_t flag, const mpdmap_t 
       int nstripsinrange=0;
       double sumADCinrange=0.0;
 
-      for( int ihit=0; ihit<nhits; ihit++ ){
+      for( UInt_t ihit=0; ihit<nhits; ihit++ ){
 	int iraw=isamp + fN_MPD_TIME_SAMP * ihit;
 	
 	double ADCtemp = fPedSubADC_APV[iraw];

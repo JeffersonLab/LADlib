@@ -32,7 +32,7 @@ struct mpdmap_t {
 class THcLADGEMModule : public THaSubDetector {
  public:
 
-  THcLADGEMModule( const char* name, const char* description="",
+  THcLADGEMModule( const char* name, const char* description="", Int_t imod=0,
 		   THaDetectorBase* parent = nullptr );
   virtual ~THcLADGEMModule();
   
@@ -56,7 +56,11 @@ class THcLADGEMModule : public THaSubDetector {
       return fClustersV.size();
   }
 
+  Int_t GetModuleID() { return fModuleID; }
+
  protected:
+  
+  Int_t fModuleID;
 
   bool fIsDecoded;
 
@@ -325,7 +329,8 @@ class THcLADGEMModule : public THaSubDetector {
   Double_t fPyU;            //U Strip Y projection = sin( UAngle );
   Double_t fPxV;            //V Strip X projection = cos( VAngle );
   Double_t fPyV;            //V Strip Y projection = sin( VAngle );
-  
+  Double_t fCenter[3];      //Position center of the module in the local detector coord  
+
   Bool_t fIsMC;
 
   bool fMakeEfficiencyPlots;
@@ -346,7 +351,7 @@ class THcLADGEMModule : public THaSubDetector {
 
   Int_t    GetStripNumber( UInt_t rawstrip, UInt_t pos, UInt_t invert );
   double   GetCommonMode( UInt_t isamp, Int_t flag, const mpdmap_t &apvinfo, UInt_t nhits=128 ); //default to "sorting" method:
-  double   GetCommonModeCorrection( UInt_t isamp, const mpdmap_t &apvinfo, UInt_t &ngood, const UInt_t &nhits=128, bool fullreadout=false, Int_t flag=0 );
+  double   GetCommonModeCorrection( int isamp, const mpdmap_t &apvinfo, UInt_t &ngood, const UInt_t &nhits=128, bool fullreadout=false, Int_t flag=0 );
   double   FitStripTime( int striphitindex, double RMS=20.0 ); // "dumb" fit method 
   double   CalcFitTime( const std::vector<Double_t> &samples, double RMS=20.0 );
   void     UpdateRollingAverage( int iapv, double val, std::vector<std::deque<Double_t> > &RC, std::vector<Double_t> &AVG, std::vector<Double_t> &RMS, std::vector<UInt_t> &Nevt ); 

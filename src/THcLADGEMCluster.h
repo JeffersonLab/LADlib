@@ -26,6 +26,7 @@ class THcLADGEMCluster : public TObject {
 
   Double_t GetADCsum() { return fADCsum; }
   Double_t GetPos()     { return fPos; }
+  Double_t GetPosMax()     { return fPosMax; }
   Double_t GetMoments()     { return fMoments; }
   Double_t GetPosDiff()     { return fPosDiff; }
   Double_t GetE()     { return fE; }
