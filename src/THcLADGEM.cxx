@@ -129,8 +129,8 @@ Int_t THcLADGEM::DefineVariables( EMode mode )
     {"trk.z2",         "Space point2 Z",                 "fGEMTracks.THcLADGEMTrack.GetZ2()"},
     {"trk.t",          "Avg time",                       "fGEMTracks.THcLADGEMTrack.GetT()"},
     {"trk.dt",         "Time difference between two sp", "fGEMTracks.THcLADGEMTrack.GetdT()"},
-    {"trk.d0",        "Track dist from vertex",          "fGEMTracks.THcLADGEMTrack.GetD0()"},
-    //    {"trk.projz",    "Projected z-vertex",    "fGEMTracks.GetProjVz()"},
+    {"trk.d0",         "Track dist from vertex",         "fGEMTracks.THcLADGEMTrack.GetD0()"},
+    {"trk.projz",      "Projected z-vertex",             "fGEMTracks.THcLADGEMTrack.GetProjVz()"},
     { 0 }
   };
   DefineVarsFromList( vars_trk, mode );
@@ -226,12 +226,9 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
 
   double angle = fGEMAngle * TMath::DegToRad();
 
-  //  for(auto& gemhit1 : f2DHits[fNLayers-1] ) {
-  //    for(auto& gemhit2 : f2DHits[fNLayers-2] ) {
+  for(auto& gemhit1 : f2DHits[fNLayers-2] ) {
+    for(auto& gemhit2 : f2DHits[fNLayers-1] ) {
 
-  for(auto& gemhit1 : f2DHits[3] ) {
-    for(auto& gemhit2 : f2DHits[2] ) {
-      
       if( !gemhit1.IsGoodHit || !gemhit2.IsGoodHit ) continue;
 
       double tdiff = gemhit1.TimeMean - gemhit2.TimeMean; // time difference (TimeMean1 - TimeMean2)
@@ -249,20 +246,32 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
       v_hit1.RotateY(angle);
       v_hit2.RotateY(angle);
       
-      // d0: distance from the primary vertex, assume (0,0,0) for now
+      // d0: DCAr from the primary vertex, assume (0,0,0) for now
       // we want to get the primary vtx from HMS eventually whenever available
       TVector3 v_prim(0., 0., 0.);
       double numer = ((v_prim - v_hit1).Cross((v_prim - v_hit2))).Mag();
-      double denom = (v_hit1 - v_hit2).Mag();
+      double denom = (v_hit2 - v_hit1).Mag();
       // here we can put a range/fiducial cut on d0 taking into account the target size
       double d0 = numer/denom;
 
+      // DCAz, projected z-vertex
+      // First check if it intercepts with z-axis?
+      double vpz;
+      double t1 = -v_hit1[0]/(v_hit2[0]-v_hit1[0]);
+      double t2 = -v_hit1[1]/(v_hit2[1]-v_hit1[1]);
+      if( abs(t1-t2) > 1.e-3 )
+	vpz = -999999.;
+      else
+	vpz = -v_hit1[0]*(v_hit2[2]-v_hit1[2])/(v_hit2[0]-v_hit1[0]) + v_hit1[2];
+
+      // Add track object
       THcLADGEMTrack *theGEMTrack = new ( (*fGEMTracks)[fNTracks] ) THcLADGEMTrack(fNLayers);
       theGEMTrack->SetTrackID(fNTracks); 
       theGEMTrack->AddSpacePoint(gemhit2);
       theGEMTrack->AddSpacePoint(gemhit1);
       theGEMTrack->SetTime(tmean, tdiff);
       theGEMTrack->SetD0(d0);
+      theGEMTrack->SetZVertex(vpz);
 
       fNTracks++;
     }

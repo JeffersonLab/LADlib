@@ -51,6 +51,9 @@ class THcLADGEM : public THaNonTrackingDetector, public THcHitList {
   virtual void    Clear( Option_t* opt="" );
   //  virtual Int_t   End( THaRunBase* r=0 );
 
+  Int_t   GetNTracks() const { return fNTracks; }
+  TClonesArray* GetTracks() const { return fGEMTracks; }
+
  protected:
 
   virtual Int_t   DefineVariables( EMode mode = kDefine );
