@@ -65,7 +65,7 @@ Int_t THcLADSpectrometer::ReadDatabase( const TDatime& date )
 {
 
   DBRequest list[]={
-    {"gpartmass",    &fPartMass, kDouble },
+    {"lpartmass",    &fPartMass, kDouble },
     {"lad_pcentral", &fPcentral, kDouble },
     {0}    
   };
