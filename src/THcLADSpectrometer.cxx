@@ -3,6 +3,9 @@
 #include "TDatime.h"
 #include "TList.h"
 #include "THaTrack.h"
+#include "THcGlobals.h"
+#include "THcParmList.h"
+
 
 #ifdef WITH_DEBUG
 #include <iostream>
@@ -60,6 +63,14 @@ Int_t THcLADSpectrometer::DefineVariables( EMode mode )
 //____________________________________________________________________
 Int_t THcLADSpectrometer::ReadDatabase( const TDatime& date )
 {
+
+  DBRequest list[]={
+    {"gpartmass",    &fPartMass, kDouble },
+    {"lad_pcentral", &fPcentral, kDouble },
+    {0}    
+  };
+  
+  gHcParms->LoadParmValues((DBRequest*)&list);
 
   return kOK;
 

@@ -10,6 +10,7 @@
 #include "THaAnalysisObject.h"
 #include "THaApparatus.h"
 #include "TClonesArray.h"
+#include "TMath.h"
 
 class THcLADSpectrometer : public THaApparatus {
 
@@ -37,12 +38,12 @@ class THcLADSpectrometer : public THaApparatus {
 
  protected:
   Double_t fPartMass;
+  Double_t fPcentral;
   Int_t fNtracks;
-  THcLADHodoscope *fHodo;
-  THcLADGEM *fGEM;
+  //  THcLADHodoscope *fHodo; // we don't quite need these
+  //  THcLADGEM *fGEM;
 
   TClonesArray* fTracks;
-  Int_t   fNtracks;
 
   UInt_t fStagesDone;
 
