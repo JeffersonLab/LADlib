@@ -81,7 +81,7 @@ void THcLADGEMModule::Clear( Option_t* opt )
 THaAnalysisObject::EStatus THcLADGEMModule::Init( const TDatime& date )
 {
 
-  //  cout << "THcLADGEMModule::Init()" << endl;
+  cout << "THcLADGEMModule::Init()" << endl;
   EStatus status;
   if( (status = THaSubDetector::Init(date)) )
     return fStatus = status;
@@ -95,7 +95,7 @@ THaAnalysisObject::EStatus THcLADGEMModule::Init( const TDatime& date )
 //____________________________________________________________________________________
 Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
 {
-  //  cout << "THcLADGEMModule::ReadDatabase" << endl;
+  cout << "THcLADGEMModule::ReadDatabase" << endl;
 
   // Define default values
   fZeroSuppress    = kTRUE;

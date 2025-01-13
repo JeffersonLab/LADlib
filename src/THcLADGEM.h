@@ -57,7 +57,9 @@ class THcLADGEM : public THaNonTrackingDetector, public THcHitList {
 
   virtual Int_t   DefineVariables( EMode mode = kDefine );
   virtual Int_t   ReadDatabase( const TDatime& date );
-
+  
+  void LoadPedestals();
+  void LoadCM();
   void RotateToLab(Double_t angle, TVector3& vect);
 
   Int_t fNModules;  // total number of modules
@@ -65,6 +67,9 @@ class THcLADGEM : public THaNonTrackingDetector, public THcHitList {
   Int_t fNhits;
   Int_t fNClusters;
   Int_t fNTracks;
+
+  std::string fPedFilename;
+  std::string fCMFilename;
 
   Double_t fGEMAngle;
 

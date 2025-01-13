@@ -65,7 +65,7 @@ void THcLADGEM::Clear( Option_t* opt)
 THaAnalysisObject::EStatus THcLADGEM::Init( const TDatime& date)
 {
 
-  //  cout << "THcLADGEM::Init" << endl;
+  cout << "THcLADGEM::Init" << endl;
 
   EStatus status;
   if( (status = THaNonTrackingDetector::Init( date )) )
@@ -88,6 +88,10 @@ THaAnalysisObject::EStatus THcLADGEM::Init( const TDatime& date)
     if( status != kOK )
       return fStatus = status;
   }
+
+  // Load pedestal and CM if files are provided
+  if( !fPedFilename.empty() ) LoadPedestals();
+  if( !fCMFilename.empty() ) LoadCM();
 
   return fStatus = kOK;
 
@@ -156,11 +160,17 @@ Int_t THcLADGEM::ReadDatabase( const TDatime& date )
   // initial values
   fGEMAngle = 123.5;
 
+  fPedFilename = "";
+  fCMFilename = "";
+
   DBRequest list[] = {
     {"gem_num_modules", &fNModules, kInt}, // should be defined in DB file
     {"gem_num_layers",  &fNLayers,  kInt},
     {"gem_angle",       &fGEMAngle, kDouble, 0, 1},
+    {"gem_pedfile",     &fPedFilename, kString, 0, 1},
+    {"gem_cmfile",      &fCMFilename, kString, 0, 1},
     {0}
+
   };
   gHcParms->LoadParmValues((DBRequest*)&list, prefix);
 
@@ -232,6 +242,9 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
   // if we have less than two layers, no tracking can be done
   if(fNLayers < 2) return 0;
 
+  if( f2DHits[0].size() > 0 && f2DHits[1].size() > 0 )
+    cout << "# of 2D Hits: " << f2DHits[0].size() << " " << f2DHits[1].size() << endl; 
+
   for(auto& gemhit1 : f2DHits[fNLayers-2] ) {
     for(auto& gemhit2 : f2DHits[fNLayers-1] ) {
 
@@ -290,6 +303,7 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
       fNTracks++;
     }
   }
+
   return 0;
 }
 //____________________________________________________________
@@ -321,6 +335,143 @@ Int_t THcLADGEM::FineProcess( TClonesArray& tracks )
 {
   //  cout << "THcLADGEM::FineProcess" << endl;
   return 0;
+}
+
+//____________________________________________________________
+void THcLADGEM::LoadPedestals()
+{
+
+  std::ifstream pedfile( fPedFilename );
+  if( !pedfile.good() ){
+    std::cout << "THcLADGEM Warning: could not find ped file " << fPedFilename.c_str() << std::endl;
+    return;
+  }
+  else {
+    std::cout << "THcLADGEM: Read pedestal file " << fPedFilename.c_str() << std::endl;
+  }
+
+  // omg..
+  std::map<int, std::map<int, std::map<int,std::vector<double>>>> PedMean;
+  std::map<int, std::map<int, std::map<int,std::vector<double>>>> PedRMS;
+  std::map<int, std::map<int, std::map<int,std::vector<int>>>> APVChan;
+
+  int crate, slot, mpd, adc_ch;
+  std::string thisline;
+  while( std::getline(pedfile, thisline) ){
+    if( pedfile.eof() ) break;
+    if( thisline[0] != '#' ) {
+      std::istringstream is(thisline);
+      string dummy;
+
+      if( thisline.find("APV") == 0 ){
+	is >> dummy >> crate >> slot >> mpd >> adc_ch;
+      } else {
+	int index = adc_ch + 16*mpd;
+	int apvchan;
+	double mean, rms;
+
+	is >> apvchan >> mean >> rms;
+
+	PedMean[crate][slot][index].push_back( mean );
+	PedRMS[crate][slot][index].push_back( rms );
+	APVChan[crate][slot][index].push_back( apvchan );
+      }
+    }
+  }
+  
+  for(int module=0; module<fNModules; module++){
+    for(auto it = fModules[module]->fMPDmap.begin(); it != fModules[module]->fMPDmap.end(); ++it){
+
+      int this_crate = it->crate;
+      int this_index = it->adc_id + 16*it->mpd_id;
+      int this_slot  = it->slot;
+
+      if( PedMean.find( this_crate )!= PedMean.end() ){
+	if( PedMean[this_crate].find( this_slot ) != PedMean[this_crate].end() ){
+	  if( PedMean[this_crate][this_slot].find( this_index ) != PedMean[this_crate][this_slot].end() ){
+	    for(int i=0; i<128; i++){
+	      int this_apvchan = APVChan[this_crate][this_slot][this_index][i];
+	      double this_mean = PedMean[this_crate][this_slot][this_index][i];
+	      double this_rms  = PedRMS[this_crate][this_slot][this_index][i];
+	      int this_strip = fModules[module]->GetStripNumber( this_apvchan, it->pos, it->invert );
+
+	      if( it->axis == LADGEM::kUaxis ) {
+		fModules[module]->fPedestalU[this_strip] = this_mean;
+		fModules[module]->fPedRMSU[this_strip] = this_rms;
+	      } else{
+		fModules[module]->fPedestalV[this_strip] = this_mean;
+		fModules[module]->fPedRMSV[this_strip] = this_rms;
+	      }		
+	    }
+	  }
+	}
+      }
+    }
+  }// loop over modules
+
+}
+
+//____________________________________________________________
+void THcLADGEM::LoadCM()
+{
+
+  std::ifstream cmfile( fCMFilename );
+  if( !cmfile.good() ){
+    std::cout << "THcLADGEM Warning: could not find cm file " << fCMFilename.c_str() << std::endl;
+    return;
+  }
+  else {
+    std::cout << "THcLADGEM: Read CM file " << fCMFilename.c_str() << std::endl;
+  }
+
+  std::map<int, std::map<int, std::map<int,double>>> CMMean;
+  std::map<int, std::map<int, std::map<int,double>>> CMRMS;
+
+  int crate, slot, mpd, adc_ch;
+  double mean, rms;
+
+  std::string thisline;
+  while( std::getline(cmfile, thisline) ){
+    if( cmfile.eof() ) break;
+
+      std::istringstream is(thisline);
+
+      is >> crate >> slot >> mpd >> adc_ch >> mean >> rms;
+
+      int index = adc_ch + 16*mpd;
+
+      CMMean[crate][slot][index] = mean;
+      CMRMS[crate][slot][index] = rms;
+  }
+      
+  for(int module=0; module<fNModules; module++){
+    for(auto it = fModules[module]->fMPDmap.begin(); it != fModules[module]->fMPDmap.end(); ++it){
+
+      int this_crate = it->crate;
+      int this_index = it->adc_id + 16*it->mpd_id;
+      int this_slot  = it->slot;
+      int this_apv   = it->pos;
+      
+      if( CMMean.find( this_crate )!= CMMean.end() ){
+	if( CMMean[this_crate].find( this_slot ) != CMMean[this_crate].end() ){
+	  if( CMMean[this_crate][this_slot].find( this_index ) != CMMean[this_crate][this_slot].end() ){
+
+	    double this_mean = CMMean[this_crate][this_slot][this_index];
+	    double this_rms = CMRMS[this_crate][this_slot][this_index];
+
+	    if( it->axis == LADGEM::kUaxis ) {
+	      fModules[module]->fCommonModeMeanU[this_apv] = this_mean;
+	      fModules[module]->fCommonModeRMSU[this_apv] = this_rms;
+	    } else{
+	      fModules[module]->fCommonModeMeanV[this_apv] = this_mean;
+	      fModules[module]->fCommonModeRMSV[this_apv] = this_rms;
+	    }		
+	  }
+	}
+      }
+    }
+  }// module loop
+
 }
 
 //____________________________________________________________
