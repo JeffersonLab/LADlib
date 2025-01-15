@@ -371,6 +371,9 @@ class THcLADGEMModule : public THaSubDetector {
   Int_t fNClusU;
   Int_t fNClusV;
 
+  Int_t fMAX2DHITS;
+  Int_t fN2Dhits;
+
   THaDetectorBase* fParent;
 
   ClassDef(THcLADGEMModule,0)

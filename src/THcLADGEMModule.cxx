@@ -21,6 +21,8 @@ THcLADGEMModule::THcLADGEMModule( const char* name, const char* description, Int
   fN_MPD_TIME_SAMP = 6; // mpd time sample
   fMPDMAP_ROW_SIZE = 9;
 
+  fMAX2DHITS = 10000;
+
   fIsMC = false;
 }
 
@@ -75,6 +77,7 @@ void THcLADGEMModule::Clear( Option_t* opt )
   fNClusU = 0;
   fNClusV = 0;
 
+  fN2Dhits = 0;
 }
 
 //____________________________________________________________________________________
@@ -136,7 +139,7 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   fThresholdDeconvADCMaxCombo = 75.0;
   fThresholdClusterSumDeconv = 150.0;
   
-  fADCasymCut = 1.1;
+  fADCasymCut = 0.8;
   fTimeCutUVdiff = 30.0;
   //  fCorrCoeffCut = -1.1;
   //  fCorrCoeffCutDeconv = -1.1;
@@ -1909,6 +1912,9 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis)
 //____________________________________________________________________________________
 void THcLADGEMModule::Find2DHits()
 {
+
+  fN2Dhits = 0;
+
   Int_t nclustU = GetNClusters(0);
   Int_t nclustV = GetNClusters(1);
 
@@ -1978,11 +1984,19 @@ void THcLADGEMModule::Find2DHits()
 	// filter for 2D hits apply tdiff, adcasym, corrcoeff cuts based on
 	// fTimeCutUVdiff, fADCasymCut....
 
-	// Add to 2Dhit list
-	if(nstripU > 1 && nstripV > 1){
-	  static_cast<THcLADGEM*>(fParent)->Add2DHits(fLayer, xpos, ypos, zpos,
+	fN2Dhits++;
+
+	if(fN2Dhits < fMAX2DHITS) {
+	  // Add to 2Dhit list
+	  if(nstripU > 1 && nstripV > 1){
+	    static_cast<THcLADGEM*>(fParent)->Add2DHits(fLayer, xpos, ypos, zpos,
 						      tmean, tdiff, tcorr,
 						      isgoodhit, emean, adcasym);
+	  }
+	}
+	else {
+	  cout << "THcLADGEMModule::Find2DHits -- Warning: Max number of 2D hits exceeded" << endl;
+	  return;
 	}
 
       }//v clusters
