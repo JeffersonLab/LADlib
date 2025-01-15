@@ -291,16 +291,18 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
       else
 	vpz = -v_hit1[0]*(v_hit2[2]-v_hit1[2])/(v_hit2[0]-v_hit1[0]) + v_hit1[2];
 
-      // Add track object
-      THcLADGEMTrack *theGEMTrack = new ( (*fGEMTracks)[fNTracks] ) THcLADGEMTrack(fNLayers);
-      theGEMTrack->SetTrackID(fNTracks); 
-      theGEMTrack->AddSpacePoint(gemhit1);
-      theGEMTrack->AddSpacePoint(gemhit2);
-      theGEMTrack->SetTime(tmean, tdiff);
-      theGEMTrack->SetD0(d0);
-      theGEMTrack->SetZVertex(vpz);
-
+      if(fNTracks < MAXTRACKS){
+	// Add track object
+	THcLADGEMTrack *theGEMTrack = new ( (*fGEMTracks)[fNTracks] ) THcLADGEMTrack(fNLayers);
+	theGEMTrack->SetTrackID(fNTracks); 
+	theGEMTrack->AddSpacePoint(gemhit1);
+	theGEMTrack->AddSpacePoint(gemhit2);
+	theGEMTrack->SetTime(tmean, tdiff);
+	theGEMTrack->SetD0(d0);
+	theGEMTrack->SetZVertex(vpz);
+      }
       fNTracks++;
+      
     }
   }
 
