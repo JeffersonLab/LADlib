@@ -210,6 +210,9 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
 {
   //  cout << "THcLADGEM::CoarseProcess" << endl;
 
+  fNTracks = 0;
+  fGEMTracks->Delete();
+  
   for( auto module : fModules ) {
     module->CoarseProcess(tracks); // X/Y clustering, form 2D hits
 
@@ -242,9 +245,7 @@ Int_t THcLADGEM::CoarseProcess( TClonesArray& tracks )
   // if we have less than two layers, no tracking can be done
   if(fNLayers < 2) return 0;
 
-  if( f2DHits[0].size() > 0 && f2DHits[1].size() > 0 )
-    cout << "# of 2D Hits: " << f2DHits[0].size() << " " << f2DHits[1].size() << endl; 
-
+  //  cout << "# of 2D Hits: " << f2DHits[0].size() << " " << f2DHits[1].size() << endl; 
   for(auto& gemhit1 : f2DHits[fNLayers-2] ) {
     for(auto& gemhit2 : f2DHits[fNLayers-1] ) {
 

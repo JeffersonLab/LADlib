@@ -101,7 +101,7 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   cout << "THcLADGEMModule::ReadDatabase" << endl;
 
   // Define default values
-  fZeroSuppress    = kTRUE;
+  fZeroSuppress    = kFALSE;
   fZeroSuppressRMS = 5.0; //threshold in units of RMS:
 
   fNegSignalStudy = kFALSE;
@@ -110,7 +110,7 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   fSubtractPedBeforeCommonMode = false; //only affects the pedestal-mode analysis 
   fOnlineZeroSuppression = kFALSE;
 
-  fCommonModeFlag = 0; //"sorting" method
+  fCommonModeFlag = 1; //"sorting" method
   fCommonModeOnlFlag = 3; // 3 = Danning method during GMn, 4 = Danning method during GEn
   //Default: discard highest and lowest 28 strips for "sorting method" common-mode calculation:
   fCommonModeNstripRejectHigh = 28; 
@@ -589,6 +589,12 @@ Int_t THcLADGEMModule::DefineVariables( EMode mode )
     {"strip.DeconvADCsamples", "Deconvoluted ADC samples (index = isamp+Nsamples*istrip)", kDouble, 0, &(fADCsamplesDeconv1D[0]), &fNdecoded_ADCsamples },
     {"strip.ADCsum", "Sum of ADC samples on a strip", kDouble, 0, &(fADCsums[0]), &fNstrips_hit },
     {"strip.DeconvADCsum", "Sum of deconvoluted ADC samples on a strip", kDouble, 0, &(fADCsumsDeconv[0]), &fNstrips_hit },
+    {"strip.isampmax", "sample in which max ADC occurred on a strip", kUInt, 0, &(fMaxSamp[0]), &fNstrips_hit },
+    {"strip.isampmaxDeconv", "sample in which max deconvoluted ADC occurred", kUInt, 0, &(fMaxSampDeconv[0]), &fNstrips_hit },
+    {"strip.isampmaxDeconvCombo", "first of max. pair of deconvoluted samples", kUInt, 0, &(fMaxSampDeconvCombo[0]), &fNstrips_hit },
+    {"strip.ADCmax", "Value of max ADC sample on a strip", kDouble, 0, &(fADCmax[0]), &fNstrips_hit },
+    {"strip.DeconvADCmax", "Value of max deconvoluted ADC sample", kDouble, 0, &(fADCmaxDeconv[0]), &fNstrips_hit },
+    {"strip.DeconvADCmaxCombo", "max sum of two adjacent deconv. samples", kDouble, 0, &(fADCmaxDeconvCombo[0]), &fNstrips_hit },
     {"strip.Tmean", "ADC-weighted mean strip time", kDouble, 0, &(fTmean[0]), &fNstrips_hit },
     {"strip.Tsigma", "ADC-weighted rms strip time", kDouble, 0, &(fTsigma[0]), &fNstrips_hit },
     {"strip.TmeanDeconv", "ADC-weighted mean deconvoluted strip time", kDouble, 0, &(fTmeanDeconv[0]), &fNstrips_hit },
@@ -815,6 +821,9 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 	
 	rawADC[iraw] = ADC;
 	
+	//Note: this prints out all 128 channels for 6 samples for each APV 
+	//cout << "nsamp, iraw, rawstrip, strip, ADC: " << nsamp << " " << iraw << " "<< strip << " " << Strip[iraw] << " " << ADC << endl;
+
 	double ped = (axis == LADGEM::kUaxis ) ? fPedestalU[Strip[iraw]] : fPedestalV[Strip[iraw]];
 
 	// If pedestal subtraction was done online, don't do it again:
@@ -1080,7 +1089,10 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 	    minADC = ADCvalue;
 	    iSampMin = adc_samp;
 	  }
-	  
+
+	  //	  cout << "nstrip,correctCM: " << nstrips << " " << fCorrectCommonMode << " " << pedsubADC[iraw] << " " << commonMode[adc_samp] << endl;
+	  //	  cout << "istrip, iraw, samp, rawADC, ADC: " << istrip << " " << iraw << " " << adc_samp << " " << RawADC << " " << ADCvalue << endl;
+
 	  //for crude strip timing, just take simple time bins at the center of each sample (we'll worry about trigger time words later):
 	  double Tsamp = fSamplePeriod * ( adc_samp + 0.5 );
 	  
@@ -1236,7 +1248,7 @@ Int_t THcLADGEMModule::Decode( const THaEvData& evdata )
 	    fADCsamples1D[isamp + fN_MPD_TIME_SAMP * fNstrips_hit ] = ADCtemp[isamp];
 	    fRawADCsamples1D[isamp + fN_MPD_TIME_SAMP * fNstrips_hit ] = rawADCtemp[isamp];
 	    fADCsamplesDeconv1D[isamp + fN_MPD_TIME_SAMP * fNstrips_hit ] = fADCsamples_deconv[fNstrips_hit][isamp];
-	    
+
 	    // Disable histogram stuff for now
 	    /*
 	    if( fKeepStrip[fNstrips_hit] && hADCfrac_vs_timesample_allstrips != NULL ){
