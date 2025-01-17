@@ -65,7 +65,7 @@ void THcLADGEM::Clear( Option_t* opt)
 THaAnalysisObject::EStatus THcLADGEM::Init( const TDatime& date)
 {
 
-  cout << "THcLADGEM::Init" << endl;
+  //  cout << "THcLADGEM::Init" << endl;
 
   EStatus status;
   if( (status = THaNonTrackingDetector::Init( date )) )
@@ -148,7 +148,7 @@ Int_t THcLADGEM::DefineVariables( EMode mode )
 //____________________________________________________________
 Int_t THcLADGEM::ReadDatabase( const TDatime& date )
 {
-  cout << "THcLADGEM::ReadDatabase" << endl;
+  //  cout << "THcLADGEM::ReadDatabase" << endl;
   // Called by THaDetectorBase::Init()
   // Read parameters from THcParmList
 

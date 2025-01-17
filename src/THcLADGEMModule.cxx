@@ -84,7 +84,7 @@ void THcLADGEMModule::Clear( Option_t* opt )
 THaAnalysisObject::EStatus THcLADGEMModule::Init( const TDatime& date )
 {
 
-  cout << "THcLADGEMModule::Init()" << endl;
+  //  cout << "THcLADGEMModule::Init()" << endl;
   EStatus status;
   if( (status = THaSubDetector::Init(date)) )
     return fStatus = status;
@@ -98,7 +98,7 @@ THaAnalysisObject::EStatus THcLADGEMModule::Init( const TDatime& date )
 //____________________________________________________________________________________
 Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
 {
-  cout << "THcLADGEMModule::ReadDatabase" << endl;
+  //  cout << "THcLADGEMModule::ReadDatabase" << endl;
 
   // Define default values
   fZeroSuppress    = kTRUE;
@@ -343,10 +343,10 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
     { "lgem_deconvolution_flag",  &fDeconvolutionFlag, kInt, 0, 1},
     { "lgem_peakprominence_minsigma",  &fThresh_2ndMax_nsigma, kDouble, 0, 1},
     { "lgem_peakprominence_minfraction",  &fThresh_2ndMax_fraction, kDouble, 0, 1},
-    { "lgem_maxnu_charge",  &fMaxNeighborsU_totalcharge, kUShort, 0, 1},
-    { "lgem_maxnv_charge",  &fMaxNeighborsV_totalcharge, kUShort, 0, 1},
-    { "lgem_maxnu_pos",  &fMaxNeighborsU_hitpos, kUShort, 0, 1},
-    { "lgem_maxnv_pos",  &fMaxNeighborsV_hitpos, kUShort, 0, 1},
+    { "lgem_maxnu_charge",  &fMaxNeighborsU_totalcharge, kInt, 0, 1},
+    { "lgem_maxnv_charge",  &fMaxNeighborsV_totalcharge, kInt, 0, 1},
+    { "lgem_maxnu_pos",  &fMaxNeighborsU_hitpos, kInt, 0, 1},
+    { "lgem_maxnv_pos",  &fMaxNeighborsV_hitpos, kInt, 0, 1},
     {0}
   };
   gHcParms->LoadParmValues((DBRequest*)&list2, "");
@@ -1982,12 +1982,6 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis)
       fNClusV++;
     }
 
-    /*
-      {
-	cout << "strip: " << fLayer << " " << axis << " " << nstrips <<  " " << striplo << " " << striphi << " " << stripmax
-	     << " pos: " << sumx/sumwx << " " << maxpos << " " << " " << sumADC << " " << sumt/sumwx << " " << GetName() << endl;
-      }
-    */
   }// loop over local maxima
 
 }
