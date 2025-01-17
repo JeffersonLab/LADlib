@@ -101,7 +101,7 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   cout << "THcLADGEMModule::ReadDatabase" << endl;
 
   // Define default values
-  fZeroSuppress    = kFALSE;
+  fZeroSuppress    = kTRUE;
   fZeroSuppressRMS = 5.0; //threshold in units of RMS:
 
   fNegSignalStudy = kFALSE;
@@ -110,7 +110,7 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   fSubtractPedBeforeCommonMode = false; //only affects the pedestal-mode analysis 
   fOnlineZeroSuppression = kFALSE;
 
-  fCommonModeFlag = 1; //"sorting" method
+  fCommonModeFlag = 1; // 
   fCommonModeOnlFlag = 3; // 3 = Danning method during GMn, 4 = Danning method during GEn
   //Default: discard highest and lowest 28 strips for "sorting method" common-mode calculation:
   fCommonModeNstripRejectHigh = 28; 
@@ -130,7 +130,7 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   fSamplePeriod = 24.0; //nanoseconds:
   fSigma_hitshape = 0.0004; //0.4 mm; controls cluster-splitting algorithm
 
-//Default clustering parameters:
+  //Default clustering parameters:
   fThresholdSample = 50.0;
   fThresholdStripSum = 250.0;
   fThresholdClusterSum = 500.0;
@@ -266,7 +266,7 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
   for(int i=0; i<3; i++)
     fCenter[i] = 0.;   // init
 
-  // Geometry
+  // Geometry for each module
   const DBRequest list1[] = {
     { "_layer",     &fLayer,      kInt, 0, 1},
     { "_apvmap",    &fAPVmapping, kInt, 0, 1},
@@ -278,6 +278,78 @@ Int_t THcLADGEMModule::ReadDatabase( const TDatime& date )
     {0}
   };
   gHcParms->LoadParmValues((DBRequest*)&list1, prefix.c_str());
+
+  // common for all layers -- move to THcLADGEM::ReadDatabase?
+  const DBRequest list2[] = {
+    { "lgem_zerosuppress",  &fZeroSuppress, kInt, 0, 1}, // optional
+    { "lgem_zerosuppress_nsigma",  &fZeroSuppressRMS, kDouble, 0, 1},
+    { "lgem_do_neg_signal_study",  &fNegSignalStudy, kInt, 0, 1},
+    { "lgem_pedestal_mode",  &fPedestalMode, kInt, 0, 1},
+    { "lgem_onlinezerosuppress",  &fOnlineZeroSuppression, kInt, 0, 1},
+    { "lgem_commonmode_flag",  &fCommonModeFlag, kInt, 0, 1},
+    { "lgem_commonmode_online_flag",  &fCommonModeOnlFlag, kInt, 0, 1},
+    { "lgem_commonmode_nstriphi",  &fCommonModeNstripRejectHigh, kInt, 0, 1},
+    { "lgem_commonmode_nstriplo",  &fCommonModeNstripRejectLow, kInt, 0, 1},
+    { "lgem_commonmode_niter",  &fCommonModeNumIterations, kInt, 0, 1},
+    { "lgem_commonmode_range_nsigma",  &fCommonModeRange_nsigma, kDouble, 0, 1},
+    { "lgem_commonmode_minstrips",  &fCommonModeMinStripsInRange, kInt, 0, 1},
+    { "lgem_cmplots_flag",  &fMakeCommonModePlots, kInt, 0, 1},
+    { "lgem_pedsub_online",  &fPedSubFlag, kInt, 0, 1},
+    { "lgem_max2Dhits",  &fMAX2DHITS, kInt, 0, 1},
+    { "lgem_maxtrigtime_correction",  &fMaxTrigTimeCorrection, kDouble, 0, 1},
+    { "lgem_trigtime_slope",  &fTrigTimeSlope, kDouble, 0, 1},
+    { "lgem_sample_period",  &fSamplePeriod, kDouble, 0, 1},
+    { "lgem_sigmahitshape",  &fSigma_hitshape, kDouble, 0, 1},
+    { "lgem_threshold_sample",  &fThresholdSample, kDouble, 0, 1},
+    { "lgem_threshold_stripsum",  &fThresholdStripSum, kDouble, 0, 1},
+    { "lgem_threshold_clustersum",  &fThresholdClusterSum, kDouble, 0, 1},
+    { "lgem_threshold_sample_deconv",  &fThresholdSampleDeconv, kDouble, 0, 1},
+    { "lgem_threshold_maxcombo_deconv",  &fThresholdDeconvADCMaxCombo, kDouble, 0, 1},
+    { "lgem_threshold_clustersum_deconv",  &fThresholdClusterSumDeconv, kDouble, 0, 1},
+    { "lgem_adcasym_cut",  &fADCasymCut, kDouble, 0, 1},
+    { "lgem_adcasym_sigma",  &fADCasymSigma, kDouble, 0, 1},
+    { "lgem_deltat_cut",  &fTimeCutUVdiff, kDouble, 0, 1},
+    { "lgem_deltat_sigma",  &fTimeCutUVsigma, kDouble, 0, 1},
+    { "lgem_deltat_cut_deconv",  &fTimeCutUVdiffDeconv, kDouble, 0, 1},
+    { "lgem_deltat_sigma_deconv",  &fTimeCutUVsigmaDeconv, kDouble, 0, 1},
+    { "lgem_deltat_cut_fit",  &fTimeCutUVdiffFit, kDouble, 0, 1},
+    { "lgem_deltat_sigma_fit",  &fTimeCutUVsigmaFit, kDouble, 0, 1},
+    { "lgem_adcratio_sigma",  &fADCratioSigma, kDouble, 0, 1},
+    { "lgem_upitch",  &fUStripPitch, kDouble, 0, 1},
+    { "lgem_vpitch",  &fVStripPitch, kDouble, 0, 1},
+    { "lgem_chan_cm_flags",  &fChan_CM_flags, kInt, 0, 1},
+    { "lgem_chan_timestamp_low",  &fChan_TimeStamp_low, kInt, 0, 1},
+    { "lgem_chan_timestamp_high",  &fChan_TimeStamp_high, kInt, 0, 1},
+    { "lgem_chan_event_count",  &fChan_MPD_EventCount, kInt, 0, 1},
+    { "lgem_chan_mpd_debug",  &fChan_MPD_Debug, kInt, 0, 1},
+    { "lgem_modulegain",  &fModuleGain, kDouble, 0, 1},
+    { "lgem_suppressfirstlast",  &fSuppressFirstLast, kInt, 0, 1},
+    { "lgem_deconvolution_tau",  &fStripTau, kDouble, 0, 1},
+    { "lgem_usestriptimingcut",  &fUseStripTimingCuts, kInt, 0, 1},
+    { "lgem_useTSchi2cut",  &fUseTSchi2cut, kInt, 0, 1},
+    { "lgem_sigma_tcorr",  &fSigmaHitTimeAverageCorrected, kDouble, 0, 1},
+    { "lgem_addstrip_tcut",  &fStripAddTcut_width, kDouble, 0, 1},
+    { "lgem_addstrip_ccor_cut",  &fStripAddCorrCoeffCut, kDouble, 0, 1},
+    { "lgem_striptschi2_cut",  &fStripTSchi2Cut, kDouble, 0, 1},
+    { "lgem_measure_common_mode",  &fMeasureCommonMode, kInt, 0, 1},
+    { "lgem_commonmode_nevents_lookback",  &fNeventsCommonModeLookBack, kUInt, 0, 1},
+    { "lgem_correct_common_mode",  &fCorrectCommonMode, kInt, 0, 1},
+    { "lgem_correct_common_mode_minstrips",  &fCorrectCommonModeMinStrips, kUInt, 0, 1},
+    { "lgem_correct_common_mode_nsigma",  &fCorrectCommonMode_Nsigma, kDouble, 0, 1},
+    { "lgem_commonmode_binwidth_nsigma",  &fCommonModeBinWidth_Nsigma, kDouble, 0, 1},
+    { "lgem_commonmode_scanrange_nsigma",  &fCommonModeScanRange_Nsigma, kDouble, 0, 1},
+    { "lgem_commonmode_stepsize_nsigma",  &fCommonModeStepSize_Nsigma, kDouble, 0, 1},
+    { "lgem_clustering_flag",  &fClusteringFlag, kInt, 0, 1},
+    { "lgem_deconvolution_flag",  &fDeconvolutionFlag, kInt, 0, 1},
+    { "lgem_peakprominence_minsigma",  &fThresh_2ndMax_nsigma, kDouble, 0, 1},
+    { "lgem_peakprominence_minfraction",  &fThresh_2ndMax_fraction, kDouble, 0, 1},
+    { "lgem_maxnu_charge",  &fMaxNeighborsU_totalcharge, kUShort, 0, 1},
+    { "lgem_maxnv_charge",  &fMaxNeighborsV_totalcharge, kUShort, 0, 1},
+    { "lgem_maxnu_pos",  &fMaxNeighborsU_hitpos, kUShort, 0, 1},
+    { "lgem_maxnv_pos",  &fMaxNeighborsV_hitpos, kUShort, 0, 1},
+    {0}
+  };
+  gHcParms->LoadParmValues((DBRequest*)&list2, "");
 
   InitAPVMAP();
 
@@ -494,7 +566,6 @@ Int_t THcLADGEMModule::GetChannelMap(const char* prefix, const TDatime& date)
 
   const DBRequest request[] = {
     {"_chanmap", &fChanMapData, kIntV, 0, 0, 0},
-    {"_commonmode_nevents_lookback", &fNeventsCommonModeLookBack, kUInt, 0, 1, 1 },
     {0}
   };
 
