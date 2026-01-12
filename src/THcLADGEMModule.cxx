@@ -940,7 +940,14 @@ Int_t THcLADGEMModule::DefineVariables(EMode mode) {
   // Add variable for number of 2D hits
   VarDef vars2D[] = {{"n2Dhits", "Number of 2D hits", kUInt, 0, &fN2Dhits}, {nullptr}};
 
-  return DefineVarsFromList(vars2D, mode);
+  DefineVarsFromList(vars2D, mode);
+
+  VarDef varClus[] = {
+    {"nclusters", "Number of clusters", kInt, 0, &fNClus},
+    {nullptr}
+  };
+
+  return DefineVarsFromList(varClus, mode);
 }
 
 //____________________________________________________________________________________
