@@ -125,6 +125,10 @@ protected:
   std::vector<Double_t> fADCAsym;
   std::vector<Double_t> fTimeDiff;
   std::vector<Double_t> fTimeCorr;
+  std::vector<Double_t> fCorrCoeff;
+  std::vector<Double_t> fCorrCoeff_Deconv;
+  std::vector<Double_t> fCorrCoeff_Strip;
+  std::vector<Double_t> fCorrCoeff_Strip_Deconv;
   std::vector<Int_t> fIsGoodHit;
   std::vector<Int_t> fClusID0;
   std::vector<Int_t> fClusID1;

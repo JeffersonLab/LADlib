@@ -39,6 +39,8 @@ class THcLADGEMCluster : public TObject {
   Double_t GetADCsumDeconvMaxCombo() { return fADCsumDeconvMaxCombo; }
   const std::vector<Double_t>& GetStripADCsum() { return stripADCsum; }
   const std::vector<Double_t>& GetDeconvADCsum() { return DeconvADCsum; }
+  const std::vector<Double_t>& GetADCsamples() { return ADCsamples; }
+  const std::vector<Double_t>& GetDeconvADCsamples() { return DeconvADCsamples; }
   Int_t    GetSampMaxDeconv()  { return fSampMaxDeconv; }
   Int_t    GetComboMaxDeconv()  { return fComboMaxDeconv; }
   Int_t    GetSampMax()  { return fSampMax; }

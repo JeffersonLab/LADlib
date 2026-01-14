@@ -69,6 +69,10 @@ void THcLADGEM::Clear(Option_t *opt) {
   fClusID1.clear();
   fSPID.clear();
   fLayer.clear();
+  fCorrCoeff.clear();
+  fCorrCoeff_Deconv.clear();
+  fCorrCoeff_Strip.clear();
+  fCorrCoeff_Strip_Deconv.clear();
 }
 
 //____________________________________________________________
@@ -166,6 +170,10 @@ Int_t THcLADGEM::DefineVariables(EMode mode) {
                        {"sp.isgoodhit", "Good hit flag of GEM hit in layer 0", "fIsGoodHit"},
                        {"sp.clusID1", "Cluster ID1 of GEM hit in layer 0", "fClusID0"},
                        {"sp.clusID2", "Cluster ID2 of GEM hit in layer 0", "fClusID1"},
+                       {"sp.corrcoeff", "Correlation Coefficient of GEM hit in layer 0", "fCorrCoeff"},
+                       {"sp.corrcoeff_deconv", "Deconvoluted Correlation Coefficient of GEM hit in layer 0", "fCorrCoeff_Deconv"},
+                       {"sp.corrcoeff_strip", "Strip Correlation Coefficient of GEM hit in layer 0", "fCorrCoeff_Strip"},
+                       {"sp.corrcoeff_strip_deconv", "Strip Deconvoluted Correlation Coefficient of GEM hit in layer 0", "fCorrCoeff_Strip_Deconv"},
                        {"sp.spID", "Track ID of GEM hit in layer 0", "fSPID"},
                        {"sp.layer", "2D hit layer", "fLayer"},
                        {0}};
@@ -382,6 +390,10 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
   fClusID1.reserve(nhits);
   fSPID.reserve(nhits);
   fLayer.reserve(nhits);
+  fCorrCoeff.reserve(nhits);
+  fCorrCoeff_Deconv .reserve(nhits);
+  fCorrCoeff_Strip .reserve(nhits);
+  fCorrCoeff_Strip_Deconv .reserve(nhits);
 
   for (int layer = 0; layer < fNLayers; ++layer) {
     for (const auto &hit : f2DHits[layer]) {
@@ -396,6 +408,10 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
       fIsGoodHit.push_back(hit.IsGoodHit);
       fClusID0.push_back(hit.clusID[0]);
       fClusID1.push_back(hit.clusID[1]);
+      fCorrCoeff.push_back(hit.corrcoeff);
+      fCorrCoeff_Deconv.push_back(hit.corrcoeff_deconv);
+      fCorrCoeff_Strip.push_back(hit.corrcoeff_strip);
+      fCorrCoeff_Strip_Deconv.push_back(hit.corrcoeff_strip_deconv);
       fSPID.push_back(hit.spID);
       fLayer.push_back(layer);
     }

@@ -2225,6 +2225,7 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis) {
     vector<double> adcsamples_deconv(fN_MPD_TIME_SAMP);
     vector<double> stripADCsums;
     vector<double> stripADCsums_deconv;
+    std::vector<UInt_t> clust_hitindex;
     for (int isamp = 0; isamp < fN_MPD_TIME_SAMP; isamp++){
       adcsamples[isamp] = 0.0;
       adcsamples_deconv[isamp] = 0.0;
@@ -2270,6 +2271,7 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis) {
         sumt += tstrip * ADCstrip;
         sumt2 += pow(tstrip, 2) * ADCstrip;
       }
+      clust_hitindex.push_back(hitindex[istrip]);
     } // istrip
 
     double maxADC = 0.0;
@@ -2280,7 +2282,7 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis) {
         sampleMax = isamp;
       }
     }
-
+    
     THcLADGEMCluster cluster;
     cluster.SetMode(fClusteringFlag);
     cluster.SetLayer(fLayer);
@@ -2291,6 +2293,7 @@ void THcLADGEMModule::FindClusters1D(LADGEM::GEMaxis_t axis) {
     cluster.SetStrips(nstrips, striplo, striphi, stripmax);
     cluster.SetPosition(sumx / sumwx);
     cluster.SetPosMaxStrip(maxpos);
+    cluster.SetHitIndex(clust_hitindex);
 
     double mom       = ((sumx / sumwx) - maxpos) / pitch;
     double pos_sigma = sqrt(sumx2 / sumwx - pow(sumx / sumwx, 2));
@@ -2327,6 +2330,9 @@ void THcLADGEMModule::Find2DHits() {
   Int_t nclustU = GetNClusters(0);
   Int_t nclustV = GetNClusters(1);
 
+  int nsamp_corr = fN_MPD_TIME_SAMP;
+  int firstsamp_corr = 0;
+
   if (nclustU > 0 && nclustV) {
 
     for (int iu = 0; iu < nclustU; iu++) {
@@ -2352,6 +2358,17 @@ void THcLADGEMModule::Find2DHits() {
                          (fClustersU[iu].GetADCsum() + fClustersV[iv].GetADCsum());
 
         // FIXME: correlation coefficient cut not included here
+        double corrcoeff_clust = CorrCoeff(fN_MPD_TIME_SAMP, fClustersU[iu].GetADCsamples(),
+                                               fClustersV[iv].GetADCsamples(), firstsamp_corr);
+        double corrcoeff_deconv = CorrCoeff(fN_MPD_TIME_SAMP, fClustersU[iu].GetDeconvADCsamples(),
+                                                 fClustersV[iv].GetDeconvADCsamples(), firstsamp_corr);
+
+        UInt_t uhitindex = fClustersU[iu].GetHitIndex().at(fClustersU[iu].GetStripMax()- fClustersU[iu].GetStripLow());
+        UInt_t vhitindex = fClustersV[iv].GetHitIndex().at(fClustersV[iv].GetStripMax()- fClustersV[iv].GetStripLow());
+        double corrcoeff_strip = CorrCoeff(fN_MPD_TIME_SAMP, fADCsamples[uhitindex],
+                                                 fADCsamples[vhitindex], firstsamp_corr);
+        double corrcoeff_strip_deconv = CorrCoeff(fN_MPD_TIME_SAMP, fADCsamples_deconv[uhitindex],
+                                                         fADCsamples_deconv[vhitindex], firstsamp_corr);
 
         double tdiff = fClustersU[iu].GetTime() - fClustersV[iv].GetTime() - (fHitTimeMean[0] - fHitTimeMean[1]);
 
@@ -2447,6 +2464,11 @@ void THcLADGEMModule::Find2DHits() {
              hitTmp->posX=vHit.X();
              hitTmp->posY=vHit.Y();
              hitTmp->posZ=vHit.Z();
+
+             hitTmp->corrcoeff = corrcoeff_clust;
+             hitTmp->corrcoeff_deconv = corrcoeff_deconv;
+             hitTmp->corrcoeff_strip = corrcoeff_strip;
+             hitTmp->corrcoeff_strip_deconv = corrcoeff_strip_deconv;
           }
         } else {
           cout << "THcLADGEMModule::Find2DHits -- Warning: Max number of 2D hits exceeded" << endl;

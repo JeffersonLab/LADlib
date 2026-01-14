@@ -11,11 +11,14 @@ class GEM2DHits {
 public:
   GEM2DHits()
       : layer(-1), posX(kBig), posY(kBig), posZ(kBig), posX_local(kBig), posY_local(kBig), TimeMean(kBig),
-        TimeDiff(kBig), TimeCorr(kBig), IsGoodHit(kFALSE), ADCMean(kBig), ADCasym(kBig), spID(-1), clusID{-1, -1} {}
+        TimeDiff(kBig), TimeCorr(kBig), IsGoodHit(kFALSE), ADCMean(kBig), ADCasym(kBig), spID(-1), clusID{-1, -1},
+        corrcoeff(0.0), corrcoeff_deconv(0.0), corrcoeff_strip(0.0), corrcoeff_strip_deconv(0.0) {}
   GEM2DHits(const GEM2DHits &other)
       : layer(other.layer), posX(other.posX), posY(other.posY), posZ(other.posZ), posX_local(other.posX_local),
         posY_local(other.posY_local), TimeMean(other.TimeMean), TimeDiff(other.TimeDiff), TimeCorr(other.TimeCorr),
-        IsGoodHit(other.IsGoodHit), ADCMean(other.ADCMean), ADCasym(other.ADCasym), spID(other.spID) {
+        IsGoodHit(other.IsGoodHit), ADCMean(other.ADCMean), ADCasym(other.ADCasym), spID(other.spID),
+        corrcoeff(other.corrcoeff), corrcoeff_deconv(other.corrcoeff_deconv), corrcoeff_strip(other.corrcoeff_strip),
+        corrcoeff_strip_deconv(other.corrcoeff_strip_deconv) {
     clusID[0] = other.clusID[0];
     clusID[1] = other.clusID[1];
   }
@@ -55,6 +58,10 @@ public:
   Double_t ADCasym;
   Int_t spID;   // this Space point's ID
   Int_t clusID[2]; // associated cluster IDs
+  double corrcoeff;
+  double corrcoeff_deconv;
+  double corrcoeff_strip;
+  double corrcoeff_strip_deconv;
 };
 
 class THcLADGEMTrack : public TObject {
