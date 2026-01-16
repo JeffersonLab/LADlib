@@ -174,7 +174,7 @@ Int_t THcLADGEM::DefineVariables(EMode mode) {
                        {"sp.corrcoeff_deconv", "Deconvoluted Correlation Coefficient of GEM hit in layer 0", "fCorrCoeff_Deconv"},
                        {"sp.corrcoeff_strip", "Strip Correlation Coefficient of GEM hit in layer 0", "fCorrCoeff_Strip"},
                        {"sp.corrcoeff_strip_deconv", "Strip Deconvoluted Correlation Coefficient of GEM hit in layer 0", "fCorrCoeff_Strip_Deconv"},
-                       {"sp.spID", "Track ID of GEM hit in layer 0", "fSPID"},
+                       {"sp.spID", "SP ID of GEM hit in layer 0", "fSPID"},
                        {"sp.layer", "2D hit layer", "fLayer"},
                        {0}};
   DefineVarsFromList(vars_sp, mode);
@@ -205,10 +205,12 @@ Int_t THcLADGEM::DefineVariables(EMode mode) {
     RVarDef vars_trk[] = {
         {"trk.ntracks", "Number of GEM track candidates", "fNTracks"},
         {"trk.id", "GEM Track ID", "fGEMTracks.THcLADGEMTrack.GetTrackID()"},
-        {"trk.spID_0u", "Space Point ID for Layer 0 U", "fGEMTracks.THcLADGEMTrack.GetSpacePointID_0U()"},
-        {"trk.spID_0v", "Space Point ID for Layer 0 V", "fGEMTracks.THcLADGEMTrack.GetSpacePointID_0V()"},
-        {"trk.spID_1u", "Space Point ID for Layer 1 U", "fGEMTracks.THcLADGEMTrack.GetSpacePointID_1U()"},
-        {"trk.spID_1v", "Space Point ID for Layer 1 V", "fGEMTracks.THcLADGEMTrack.GetSpacePointID_1V()"},
+        {"trk.spID_0", "Space Point ID for Layer 0 ", "fGEMTracks.THcLADGEMTrack.GetSpID_0()"},
+        {"trk.spID_1", "Space Point ID for Layer 1 ", "fGEMTracks.THcLADGEMTrack.GetSpID_1()"},
+        {"trk.spID_0u", "Cluster ID for Layer 0 U", "fGEMTracks.THcLADGEMTrack.GetSpacePointID_0U()"},
+        {"trk.spID_0v", "Cluster ID for Layer 0 V", "fGEMTracks.THcLADGEMTrack.GetSpacePointID_0V()"},
+        {"trk.spID_1u", "Cluster ID for Layer 1 U", "fGEMTracks.THcLADGEMTrack.GetSpacePointID_1U()"},
+        {"trk.spID_1v", "Cluster ID for Layer 1 V", "fGEMTracks.THcLADGEMTrack.GetSpacePointID_1V()"},
         {"trk.adc1", "2D hit ADC mean for 1st layer", "fGEMTracks.THcLADGEMTrack.GetADCMean_Sp1()"},
         {"trk.adc2", "2D hit ADC mean for 2nd layer", "fGEMTracks.THcLADGEMTrack.GetADCMean_Sp2()"},
         {"trk.asy1", "2D hit ADC asym for 1st layer", "fGEMTracks.THcLADGEMTrack.GetADCasym_Sp1()"},
@@ -494,8 +496,8 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
         vpy = -v_hit1[0] * (v_hit2[1] - v_hit1[1]) / (v_hit2[0] - v_hit1[0]) + v_hit1[1];
       }
 
-      gemhit1.spID = fNTracks;
-      gemhit2.spID = fNTracks;
+      gemhit1.trackID = fNTracks;
+      gemhit2.trackID = fNTracks;
 
       if (fNTracks < MAXTRACKS) {
         // Add track object
@@ -513,7 +515,7 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
     }
     gemhit1_id++;
   }
-
+  
   return 0;
 }
 //____________________________________________________________
