@@ -2442,33 +2442,33 @@ void THcLADGEMModule::Find2DHits() {
         // filter for 2D hits apply tdiff, adcasym, corrcoeff cuts based on
         // fTimeCutUVdiff, fADCasymCut....
 
-        fN2Dhits++;
 
-        if (fN2Dhits < fMAX2DHITS) {
+        if (fN2Dhits +1 < fMAX2DHITS) {
 
           // Add to 2Dhit list
           if (nstripU > 1 && nstripV > 1) {
             int clust_id1 = fClustersU[iu].GetCLIndex();
             int clust_id2 = fClustersV[iv].GetCLIndex();
             GEM2DHits* hitTmp =static_cast<THcLADGEM *>(fParent)->Add2DHits(fLayer, xpos, ypos, zpos, tmean, tdiff, tcorr, isgoodhit,
-                                                         emean, adcasym, clust_id1, clust_id2, fN2Dhits - 1);
-             TVector3 vHit(xpos, ypos, zpos);
-             vHit.RotateX(fRotation[0] * TMath::DegToRad()); 
-             vHit.RotateY(fRotation[1] * TMath::DegToRad()); 
-             vHit.RotateZ(fRotation[2] * TMath::DegToRad());
-             vHit.SetX(vHit.X()+fCenter[0]); 
-             vHit.SetY(vHit.Y()+fCenter[1]); 
-             vHit.SetZ(vHit.Z()+fCenter[2]);
-             vHit.RotateY(fGEMAngle[0] * TMath::DegToRad()); 
-             vHit.RotateZ(fGEMAngle[1] * TMath::DegToRad()); 
-             hitTmp->posX=vHit.X();
-             hitTmp->posY=vHit.Y();
-             hitTmp->posZ=vHit.Z();
+                                                         emean, adcasym, clust_id1, clust_id2, fN2Dhits);
+            TVector3 vHit(xpos, ypos, zpos);
+            vHit.RotateX(fRotation[0] * TMath::DegToRad()); 
+            vHit.RotateY(fRotation[1] * TMath::DegToRad()); 
+            vHit.RotateZ(fRotation[2] * TMath::DegToRad());
+            vHit.SetX(vHit.X()+fCenter[0]); 
+            vHit.SetY(vHit.Y()+fCenter[1]); 
+            vHit.SetZ(vHit.Z()+fCenter[2]);
+            vHit.RotateY(fGEMAngle[0] * TMath::DegToRad()); 
+            vHit.RotateZ(fGEMAngle[1] * TMath::DegToRad()); 
+            hitTmp->posX=vHit.X();
+            hitTmp->posY=vHit.Y();
+            hitTmp->posZ=vHit.Z();
 
-             hitTmp->corrcoeff = corrcoeff_clust;
-             hitTmp->corrcoeff_deconv = corrcoeff_deconv;
-             hitTmp->corrcoeff_strip = corrcoeff_strip;
-             hitTmp->corrcoeff_strip_deconv = corrcoeff_strip_deconv;
+            hitTmp->corrcoeff = corrcoeff_clust;
+            hitTmp->corrcoeff_deconv = corrcoeff_deconv;
+            hitTmp->corrcoeff_strip = corrcoeff_strip;
+            hitTmp->corrcoeff_strip_deconv = corrcoeff_strip_deconv;
+            fN2Dhits++;
           }
         } else {
           cout << "THcLADGEMModule::Find2DHits -- Warning: Max number of 2D hits exceeded" << endl;
