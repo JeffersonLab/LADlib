@@ -582,7 +582,7 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
     return -1; // Invalid input
   }
   int nPoints = sp_positions.size();
-  if (nPoints < 2) {
+  if (nPoints < 2 || nPoints > 4) {
     return -1; // Not enough points to fit a track
   }
   if (nPoints != sp_resolutions.size()) {

@@ -139,8 +139,6 @@ public:
   int GetSpacePointID_0V() { return fSp[0].clusID[1]; }
   int GetSpacePointID_1U() { return fSp[1].clusID[0]; }
   int GetSpacePointID_1V() { return fSp[1].clusID[1]; }
-  Double_t GetChi2() const { return chisq; }
-  void SetChi2(Double_t c) { chisq = c; }
 protected:
   Int_t fNSp;
   Double_t fProjVz;
