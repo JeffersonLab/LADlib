@@ -56,6 +56,17 @@ protected:
   Int_t n_rf_offsets;
   Double_t *rf_offset;
   Double_t rf_period;
+
+  Double_t fZCellMin;  // default -15.0 cm
+  Double_t fZCellMax;  // default +15.0 cm
+  Double_t fThetaMin;  // default 60.0 deg
+  Double_t fThetaMax;  // default 170.0 deg
+  Double_t fPhiMin;    // default -50.0 deg
+  Double_t fPhiMax;    // default +50.0 deg
+
+
+
+
   virtual Int_t DefineVariables(EMode mode = kDefine);
   void CalculateTVertex();
   Double_t CalculateToF(Double_t t_raw);

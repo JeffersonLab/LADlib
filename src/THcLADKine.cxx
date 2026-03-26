@@ -31,6 +31,14 @@ ClassImp(THcLADKine)
   rf_offset       = nullptr;
   n_rf_offsets    = 0;
   rf_period       = 4.00801; // Default RF period in ns
+
+  fZCellMin  = -15.0;   // cm
+  fZCellMax  = +15.0;   // cm
+  fThetaMin  =  60.0;   // deg
+  fThetaMax  = 170.0;   // deg
+  fPhiMin    = -50.0;  // deg
+  fPhiMax    = +50.0;  // deg
+
 }
 //_____________________________________________________________________________
 THcLADKine::~THcLADKine() {
@@ -183,6 +191,31 @@ Int_t THcLADKine::ReadDatabase(const TDatime &date) {
     fFixed_z = nullptr;
   }
 
+  DBRequest track_constraints[] = {{ "ladkin.z_cell_min", &fZCellMin, kDouble, 0, 1 },
+                                   { "ladkin.z_cell_max", &fZCellMax, kDouble, 0, 1 },
+                                   { "ladkin.theta_min", &fThetaMin, kDouble, 0, 1 },
+                                   { "ladkin.theta_max", &fThetaMax, kDouble, 0, 1 },
+                                   { "ladkin.phi_min", &fPhiMin, kDouble, 0, 1 },
+                                   { "ladkin.phi_max", &fPhiMax, kDouble, 0, 1 },
+                                   { 0 } };
+  gHcParms->LoadParmValues((DBRequest *)&track_constraints, prefix);
+
+  if (fZCellMin > fZCellMax) {
+    Double_t tmp = fZCellMin; fZCellMin = fZCellMax; fZCellMax = tmp;
+  }
+  if (fThetaMin > fThetaMax) {
+    Double_t tmp = fThetaMin; fThetaMin = fThetaMax; fThetaMax = tmp;
+  }
+  if (fPhiMin > fPhiMax) {
+    Double_t tmp = fPhiMin; fPhiMin = fPhiMax; fPhiMax = tmp;
+  }
+
+  fThetaMin = TMath::Max(0.0,   TMath::Min(180.0, fThetaMin));
+  fThetaMax = TMath::Max(0.0,   TMath::Min(180.0, fThetaMax));
+  fPhiMin   = TMath::Max(-180.0,TMath::Min(180.0, fPhiMin));
+  fPhiMax   = TMath::Max(-180.0,TMath::Min(180.0, fPhiMax));
+
+
   return err;
 }
 //_____________________________________________________________________________
@@ -226,7 +259,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
 
     Double_t dir[3];
     dir[0] = TMath::ACos((v_hit2.Z() - v_hit1.Z()) / (v_hit2 - v_hit1).Mag()) * TMath::RadToDeg();
-    dir[1] = TMath::ATan((v_hit2.Y() - v_hit1.Y()) / (v_hit2.X() - v_hit1.X())) * TMath::RadToDeg();
+    dir[1] = TMath::ATan2((v_hit2.Y() - v_hit1.Y()) , (v_hit2.X() - v_hit1.X())) * TMath::RadToDeg();
     dir[2] = vertex.Z();
     //Only fitting GEM hits for now, need to add LAD hits later
     Double_t chisq=-kBig;
@@ -606,14 +639,17 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
     double phi   = params[1] * TMath::DegToRad(); // Convert to radians
     double z     = params[2];
     double chi2_local = 0;
+    double sx = TMath::Sin(theta) * TMath::Cos(phi);
+    double sy = TMath::Sin(theta) * TMath::Sin(phi);
+    double sz = TMath::Cos(theta);
     for (int i = 0; i < nPoints; i++) {
       //closest approach of the track to the point
-      double t = ((sp_positions[i].X() - vertex.X()) * TMath::Sin(theta) * TMath::Cos(phi) +
-                  (sp_positions[i].Y() - vertex.Y()) * TMath::Sin(theta) * TMath::Sin(phi) +
-                  (sp_positions[i].Z() - z) * TMath::Cos(theta));
-      double x_closest = vertex.X() + t * TMath::Sin(theta) * TMath::Cos(phi);
-      double y_closest = vertex.Y() + t * TMath::Sin(theta) * TMath::Sin(phi);
-      double z_closest = z + t * TMath::Cos(theta);
+      double t = ((sp_positions[i].X() - vertex.X()) * sx +
+                  (sp_positions[i].Y() - vertex.Y()) * sy +
+                  (sp_positions[i].Z() - z) * sz);
+      double x_closest = vertex.X() + t * sx;
+      double y_closest = vertex.Y() + t * sy;
+      double z_closest = z + t * sz;
       double dx = sp_positions[i].X() - x_closest;
       double dy = sp_positions[i].Y() - y_closest;
       double dz = sp_positions[i].Z() - z_closest;
@@ -633,11 +669,11 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
 
   double initial_params[3] = {dir[0], dir[1], vertex.Z()};
   minimizer->SetVariable(0, "theta", initial_params[0], 0.1);
-  minimizer->SetVariableLimits(0, 45, 180);// Limit theta to be between 45 and 180 degrees to avoid unphysical solutions (tracks going backwards)
+  minimizer->SetVariableLimits(0, fThetaMin, fThetaMax);// Limit theta to be between 45 and 180 degrees to avoid unphysical solutions (tracks going backwards)
   minimizer->SetVariable(1, "phi", initial_params[1], 0.1);
-  minimizer->SetVariableLimits(1, -90, 90);//Limit phi as the GEMs are only on the left side of the target in beam direction
+  minimizer->SetVariableLimits(1, fPhiMin, fPhiMax);//Limit phi as the GEMs are only on the left side of the target in beam direction
   minimizer->SetVariable(2, "z_vertex", initial_params[2], 0.1);
-  minimizer->SetVariableLimits(2, - 50, + 50); //the target length is 20cm, this should be more than wide enough
+  minimizer->SetVariableLimits(2, fZCellMin, fZCellMax); //the target length is 20cm, this should be more than wide enough
   minimizer->Minimize();
   if (minimizer->Status() != 0) {
     return -5; // Fit did not converge
