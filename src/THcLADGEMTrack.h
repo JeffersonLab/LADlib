@@ -95,6 +95,7 @@ public:
   // Track quantities
   Double_t GetProjVz() const { return fProjVz; } // projected z-vertex
   Double_t GetProjVy() const { return fProjVy; } // projected y-vertex
+  Double_t GetProjVx() const { return fProjVx; } // projected x-vertex
   Double_t GetD0() const { return fD0; }
   Bool_t GetGoodD0() const { return fhasGoodD0; }
   Double_t GetT() const { return fT; }
@@ -107,6 +108,24 @@ public:
   void SetGoodD0(Bool_t good) { fhasGoodD0 = good; }
   void SetZVertex(Double_t vz) { fProjVz = vz; }
   void SetYVertex(Double_t vy) { fProjVy = vy; }
+  void SetXVertex(Double_t vx) { fProjVx = vx; }
+  void SetProjVertex(Double_t vx, Double_t vy, Double_t vz) {
+    fProjVx = vx;
+    fProjVy = vy;
+    fProjVz = vz;
+  }
+  void SetAngles(Double_t theta, Double_t phi) {
+    ftheta = theta;
+    fphi   = phi;
+  }
+  void GetAngles(Double_t &theta, Double_t &phi) const {
+    theta = ftheta;
+    phi   = fphi;
+  }
+  Double_t GetTheta() const { return ftheta; }
+  Double_t GetPhi() const { return fphi; }
+  void SetChisq(Double_t c) { chisq = c; }
+  Double_t GetChisq() const { return chisq; }
   void SetTime(Double_t t, Double_t dt) {
     fT     = t;
     fTdiff = dt;
@@ -120,11 +139,13 @@ public:
   int GetSpacePointID_0V() { return fSp[0].clusID[1]; }
   int GetSpacePointID_1U() { return fSp[1].clusID[0]; }
   int GetSpacePointID_1V() { return fSp[1].clusID[1]; }
-
+  Double_t GetChi2() const { return chisq; }
+  void SetChi2(Double_t c) { chisq = c; }
 protected:
   Int_t fNSp;
   Double_t fProjVz;
   Double_t fProjVy;
+  Double_t fProjVx;
   Double_t fD0;
   Bool_t fhasGoodD0;
   Int_t fTrackID;
@@ -133,6 +154,9 @@ protected:
   Double_t fT;
   Double_t fTdiff;
   bool fHasHodoHit;
+  Double_t chisq;
+  Double_t ftheta; // track angle between the track and z-azis in degrees
+  Double_t fphi;   // track angle between the track and x-azis in degrees
 
   GEM2DHits *fSp;
 

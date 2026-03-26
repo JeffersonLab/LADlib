@@ -10,6 +10,10 @@
 #include "TVector3.h"
 #include "VarDef.h"
 #include "VarType.h"
+#include "Math/Minimizer.h"
+#include "Math/Factory.h"
+#include "Math/Functor.h"
+
 
 ClassImp(THcLADKine)
     //_____________________________________________________________________________
@@ -208,7 +212,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     } else {
       vertex.SetXYZ(0, 0, 0);
     }
-
+    
     // Fix track vertex (for improved resolution on multifoils)
     if (fNfixed_z > 0 && track->GetGoodD0()) {
       std::vector<double> distances;
@@ -220,6 +224,27 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
       vertex.SetZ(fFixed_z[min_index]);
     }
 
+    Double_t dir[3];
+    dir[0] = TMath::ACos((v_hit2.Z() - v_hit1.Z()) / (v_hit2 - v_hit1).Mag()) * TMath::RadToDeg();
+    dir[1] = TMath::ATan((v_hit2.Y() - v_hit1.Y()) / (v_hit2.X() - v_hit1.X())) * TMath::RadToDeg();
+    dir[2] = vertex.Z();
+    //Only fitting GEM hits for now, need to add LAD hits later
+    Double_t chisq=-kBig;
+    chisq= FitTrack(vertex, {v_hit1, v_hit2}, {0.1,0.1}, dir);//hardcoded resolution for now, should be parameterized based on detector performance
+    track->SetChisq(chisq);// set chisq even if the fit fails so we can see why
+    if(chisq<0) {
+      isGoodTrack[i] = false;
+      //cout<<"THcLADKine: Track fit failed for track "<<i<<" with error code "<<chisq<<endl;
+      track->SetAngles(-kBig, -kBig);
+      track->SetProjVertex(-kBig, -kBig, -kBig);
+      track->SetD0(-kBig);
+      continue;
+    }
+    track->SetAngles(dir[0], dir[1]);
+    track->SetProjVertex(vertex.X(), vertex.Y(), dir[2]);
+    double d0 = TMath::Abs(dir[2]-vertex.Z());
+    track->SetD0(d0);
+    /*
     // Re-calculate d0
     double numer = ((vertex - v_hit1).Cross((vertex - v_hit2))).Mag();
     double denom = (v_hit2 - v_hit1).Mag();
@@ -234,6 +259,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     // Re-calculate vpy
     double vpy = v_hit1.Y() + (vertex.X() - v_hit1.X()) * (v_hit2.Y() - v_hit1.Y()) / (v_hit2.X() - v_hit1.X());
     track->SetYVertex(vpy);
+    */
 
     if (track->GetGoodD0()) {
       if (d0 < fD0Cut_wVertex) {
@@ -550,3 +576,81 @@ Int_t THcLADKine::DefineVariables(EMode mode) {
   return kOK;
 }
 //_____________________________________________________________________________
+
+Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_positions, std::vector<double> sp_resolutions, double dir[3]){
+  if (dir == nullptr || sp_positions.empty() || sp_resolutions.empty()) {
+    return -1; // Invalid input
+  }
+  int nPoints = sp_positions.size();
+  if (nPoints < 2) {
+    return -1; // Not enough points to fit a track
+  }
+  if (nPoints != sp_resolutions.size()) {
+    return -2; // Mismatch in number of points and resolutions
+  }
+  for(int i = 0; i < nPoints; i++) {
+    if (sp_resolutions[i] <= 0) {
+      return -3; // Invalid resolution value
+    }
+  }
+  if (dir[0] < 0 || dir[0] > 180 || dir[1] < -180 || dir[1] > 180) {
+    return -4; // Invalid initial direction values
+  }
+  //requireing the track to originate from vertex (x,y), and only fitting for the track direction (theta, phi) and z vertex position. 
+  double chi2 = -kBig;
+  ROOT::Math::Minimizer *minimizer = ROOT::Math::Factory::CreateMinimizer("Minuit2", "Migrad");
+  minimizer->SetMaxFunctionCalls(1000);
+  minimizer->SetTolerance(1e-6);
+  ROOT::Math::Functor f([=](const double* params) { 
+    double theta = params[0] * TMath::DegToRad(); // Convert to radians
+    double phi   = params[1] * TMath::DegToRad(); // Convert to radians
+    double z     = params[2];
+    double chi2_local = 0;
+    for (int i = 0; i < nPoints; i++) {
+      //closest approach of the track to the point
+      double t = ((sp_positions[i].X() - vertex.X()) * TMath::Sin(theta) * TMath::Cos(phi) +
+                  (sp_positions[i].Y() - vertex.Y()) * TMath::Sin(theta) * TMath::Sin(phi) +
+                  (sp_positions[i].Z() - z) * TMath::Cos(theta));
+      double x_closest = vertex.X() + t * TMath::Sin(theta) * TMath::Cos(phi);
+      double y_closest = vertex.Y() + t * TMath::Sin(theta) * TMath::Sin(phi);
+      double z_closest = z + t * TMath::Cos(theta);
+      double dx = sp_positions[i].X() - x_closest;
+      double dy = sp_positions[i].Y() - y_closest;
+      double dz = sp_positions[i].Z() - z_closest;
+      double dist2 = dx*dx +dz*dz;
+      if (i>2){
+        // Assume these are hodoscope hit, so no chisq penalty if the hit is within the width of the paddle
+        double paddle_width = 22; // in cm, TODO: get actual paddle width from database
+        if (dist2 < (paddle_width/2.0)*(paddle_width/2.0)) {
+          dist2 = 0;
+        }
+      }
+      chi2_local += (dist2+ dy*dy) / (sp_resolutions[i]*sp_resolutions[i]);
+    }
+    return chi2_local;
+  },3);
+  minimizer->SetFunction(f);
+
+  double initial_params[3] = {dir[0], dir[1], vertex.Z()};
+  minimizer->SetVariable(0, "theta", initial_params[0], 0.1);
+  minimizer->SetVariableLimits(0, 45, 180);// Limit theta to be between 45 and 180 degrees to avoid unphysical solutions (tracks going backwards)
+  minimizer->SetVariable(1, "phi", initial_params[1], 0.1);
+  minimizer->SetVariableLimits(1, -90, 90);//Limit phi as the GEMs are only on the left side of the target in beam direction
+  minimizer->SetVariable(2, "z_vertex", initial_params[2], 0.1);
+  minimizer->SetVariableLimits(2, - 50, + 50); //the target length is 20cm, this should be more than wide enough
+  minimizer->Minimize();
+  if (minimizer->Status() != 0) {
+    return -5; // Fit did not converge
+  }
+  const double *best_params = minimizer->X();
+  dir[0] = best_params[0]; // theta in degree
+  dir[1] = best_params[1]; // phi in degree
+  dir[2] = best_params[2]; // z vertex position
+  chi2 = minimizer->MinValue();
+  //clean up
+  delete minimizer;
+
+  //return the chi2 of the fit
+  return chi2;
+}
+

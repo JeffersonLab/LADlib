@@ -60,6 +60,7 @@ protected:
   void CalculateTVertex();
   Double_t CalculateToF(Double_t t_raw);
   Double_t CalculateTOFRFcorr(Double_t t_raw);
+  Double_t FitTrack(TVector3 vertex, std::vector<TVector3> sp_positions, std::vector<double> sp_resolutions, double dir[3]);
 
   ClassDef(THcLADKine, 0)
 };
