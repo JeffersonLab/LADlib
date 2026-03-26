@@ -277,22 +277,6 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     track->SetProjVertex(vertex.X(), vertex.Y(), dir[2]);
     double d0 = TMath::Abs(dir[2]-vertex.Z());
     track->SetD0(d0);
-    /*
-    // Re-calculate d0
-    double numer = ((vertex - v_hit1).Cross((vertex - v_hit2))).Mag();
-    double denom = (v_hit2 - v_hit1).Mag();
-    // here we can put a range/fiducial cut on d0 taking into account the target size
-    double d0 = numer / denom;
-    track->SetD0(d0);
-
-    // Re-calculate vpz
-    double vpz = v_hit1.Z() + (vertex.X() - v_hit1.X()) * (v_hit2.Z() - v_hit1.Z()) / (v_hit2.X() - v_hit1.X());
-    track->SetZVertex(vpz);
-
-    // Re-calculate vpy
-    double vpy = v_hit1.Y() + (vertex.X() - v_hit1.X()) * (v_hit2.Y() - v_hit1.Y()) / (v_hit2.X() - v_hit1.X());
-    track->SetYVertex(vpy);
-    */
 
     if (track->GetGoodD0()) {
       if (d0 < fD0Cut_wVertex) {
@@ -326,6 +310,8 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     // Get the track parameters
     Int_t plane  = hit->GetPlaneHit0();
     Int_t paddle = hit->GetPaddleHit0();
+
+    TVector3 hit_pos = fHodoscope->GetHitPositionLab(plane, paddle,hit->GetYposHit0());
 
     Int_t plane_loc; // Front vs back plane
     if (plane == 0 || plane == 2 || plane == 4)
