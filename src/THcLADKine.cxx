@@ -269,8 +269,8 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     }
 
     Double_t gemdir[3];
-    gemdir[0] = TMath::ACos((v_hit2.Z() - v_hit1.Z()) / (v_hit2 - v_hit1).Mag()) * TMath::RadToDeg();
-    gemdir[1] = TMath::ATan2((v_hit2.Y() - v_hit1.Y()) , (v_hit2.X() - v_hit1.X())) * TMath::RadToDeg();
+    gemdir[0] = TMath::ACos((v_hit2.Z() - v_hit1.Z()) / (v_hit2 - v_hit1).Mag()) ;
+    gemdir[1] = TMath::ATan2((v_hit2.Y() - v_hit1.Y()) , (v_hit2.X() - v_hit1.X()));
     gemdir[2] = vertex.Z(); //Hopefully the GEM track will be the same as elecctron vertex Z
 
     Double_t bestchisq[2]={kBig,kBig};// 2 hodo hits, 1 hodo hit 
@@ -324,7 +324,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
       track->SetProjVertex(vertex.X(), vertex.Y(), best_gemdir[0][2]);
       track->SetChisq(bestchisq[0]);
       track->SetGoodD0(kTRUE);
-      track->SetD0(TMath::Abs(best_gemdir[0][2]-vertex.Z())*TMath::Sin(best_gemdir[0][0]*TMath::DegToRad()));
+      track->SetD0(TMath::Abs(best_gemdir[0][2]-vertex.Z())*TMath::Sin(best_gemdir[0][0]));
       THcGoodLADHit *bestHodoHit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex[0]));
       track->SetBestHodoHit(bestHodoHit);
       track->SetHasHodoHit(2);
@@ -340,7 +340,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
       track->SetProjVertex(vertex.X(), vertex.Y(), best_gemdir[1][2]);
       track->SetChisq(bestchisq[1]);
       track->SetGoodD0(kTRUE);
-      track->SetD0(TMath::Abs(best_gemdir[1][2]-vertex.Z())*TMath::Sin(best_gemdir[1][0]*TMath::DegToRad()));
+      track->SetD0(TMath::Abs(best_gemdir[1][2]-vertex.Z())*TMath::Sin(best_gemdir[1][0]));
       THcGoodLADHit *bestHodoHit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex[1]));
       track->SetBestHodoHit(bestHodoHit);
       track->SetHasHodoHit(1);
@@ -362,7 +362,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
         isGoodTrack[iTrack] = true;
         track->SetAngles(dir[0], dir[1]);
         track->SetProjVertex(vertex.X(), vertex.Y(), dir[2]);
-        track->SetD0(TMath::Abs(dir[2]-vertex.Z())*TMath::Sin(dir[0]*TMath::DegToRad()));
+        track->SetD0(TMath::Abs(dir[2]-vertex.Z())*TMath::Sin(dir[0]));
         track->SetBestHodoHit(nullptr);
         track->SetHasHodoHit(0);
       }else {
@@ -373,6 +373,9 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
         track->SetProjVertex(-kBig, -kBig, -kBig);
         track->SetD0(-kBig);
         track->SetGoodD0(kFALSE);
+        track->SetHasHodoHit(0);
+        track->SetBestHodoHit(nullptr);
+        track->SetIsGoodTrack(false);
         continue;
       }
     }
@@ -392,6 +395,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     if (track->GetdT() > fTrk_dtCut) {
       isGoodTrack[iTrack] = false;
     }
+    track->SetIsGoodTrack(isGoodTrack[iTrack]);
   }
   // Calculate beta, alpha, tof, etc. for the hits
   for (Int_t i = 0; i < goodhit_n; i++) {
@@ -588,14 +592,14 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
       return -3; // Invalid resolution value
     }
   }
-  if (dir[0] < 0 || dir[0] > 180 || dir[1] < -180 || dir[1] > 180) {
+  if (dir[0] < 0 || dir[0] > TMath::Pi() || dir[1] < -TMath::Pi() || dir[1] > TMath::Pi()) {
     return -4; // Invalid initial direction values
   }
   //check if the gem track is pointing to the hodoscope hits if there are any, return negative chisq if not
   if (nPoints >2){
-    double sx = TMath::Sin(dir[0] * TMath::DegToRad()) * TMath::Cos(dir[1] * TMath::DegToRad());
-    double sy = TMath::Sin(dir[0] * TMath::DegToRad()) * TMath::Sin(dir[1] * TMath::DegToRad());
-    double sz = TMath::Cos(dir[0] * TMath::DegToRad());
+    double sx = TMath::Sin(dir[0]) * TMath::Cos(dir[1]);
+    double sy = TMath::Sin(dir[0]) * TMath::Sin(dir[1]);
+    double sz = TMath::Cos(dir[0]);
     for (int i = 2; i < nPoints; i++) {
       //closest approach of the track to the point
       double t = ((sp_positions[i].X() - sp_positions[0].X()) * sx +
@@ -621,8 +625,8 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
   minimizer->SetMaxFunctionCalls(1000);
   minimizer->SetTolerance(1e-6);
   ROOT::Math::Functor f([=](const double* params) { 
-    double theta = params[0] * TMath::DegToRad(); // Convert to radians
-    double phi   = params[1] * TMath::DegToRad(); // Convert to radians
+    double theta = params[0]; //  in radians
+    double phi   = params[1]; //  in radians
     double z     = params[2];
     double chi2_local = 0;
     double sx = TMath::Sin(theta) * TMath::Cos(phi);
@@ -662,8 +666,8 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
     return -6; // Fit did not converge
   }
   const double *best_params = minimizer->X();
-  dir[0] = best_params[0]; // theta in degree
-  dir[1] = best_params[1]; // phi in degree
+  dir[0] = best_params[0]; // theta in radians
+  dir[1] = best_params[1]; // phi in radians
   dir[2] = best_params[2]; // z vertex position
   chi2 = minimizer->MinValue();
   //clean up

@@ -236,6 +236,7 @@ Int_t THcLADGEM::DefineVariables(EMode mode) {
                           {"trk.chisq", "Track chi-squared", "fGEMTracks.THcLADGEMTrack.GetChisq()"},
                           {"trk.theta", "Track theta", "fGEMTracks.THcLADGEMTrack.GetTheta()"},
                           {"trk.phi", "Track phi", "fGEMTracks.THcLADGEMTrack.GetPhi()"},
+                          {"trk.is_good", "Track is good", "fGEMTracks.THcLADGEMTrack.IsGoodTrack()"},
                           {0}};
     DefineVarsFromList(vars_trk, mode);
   }

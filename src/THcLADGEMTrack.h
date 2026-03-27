@@ -134,6 +134,9 @@ public:
     fTdiff = dt;
   }
 
+  bool IsGoodTrack() const { return fIsGoodTrack; }
+  void SetIsGoodTrack(bool isGood) { fIsGoodTrack = isGood; }
+
   GEM2DHits GetSpacePoint(int isp) { return fSp[isp]; }
   virtual void AddSpacePoint(GEM2DHits sp);
   Int_t GetSpID_0() const {return fSp[0].spID;};
@@ -156,9 +159,9 @@ protected:
   Double_t fTdiff;
   short fHasHodoHit;
   Double_t chisq;
-  Double_t ftheta; // track angle between the track and z-azis in degrees
-  Double_t fphi;   // track angle between the track and x-azis in degrees
-
+  Double_t ftheta; // track angle between the track and z-azis in radians
+  Double_t fphi;   // track angle between the track and x-azis in radians
+  bool fIsGoodTrack;
   GEM2DHits *fSp;
   THcGoodLADHit *fBestHodoHit; // pointer to the best hodoscope hit associated with this track, if any
 
