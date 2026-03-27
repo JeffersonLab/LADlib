@@ -217,10 +217,10 @@ Int_t THcLADKine::ReadDatabase(const TDatime &date) {
     Double_t tmp = fPhiMin; fPhiMin = fPhiMax; fPhiMax = tmp;
   }
 
-  fThetaMin = TMath::Max(0.0,   TMath::Min(180.0, fThetaMin));
-  fThetaMax = TMath::Max(0.0,   TMath::Min(180.0, fThetaMax));
-  fPhiMin   = TMath::Max(-180.0,TMath::Min(180.0, fPhiMin));
-  fPhiMax   = TMath::Max(-180.0,TMath::Min(180.0, fPhiMax));
+  fThetaMin = TMath::Max(0.0,   TMath::Min(TMath::Pi(), fThetaMin));
+  fThetaMax = TMath::Max(0.0,   TMath::Min(TMath::Pi(), fThetaMax));
+  fPhiMin   = TMath::Max(-TMath::Pi(),TMath::Min(TMath::Pi(), fPhiMin));
+  fPhiMax   = TMath::Max(-TMath::Pi(),TMath::Min(TMath::Pi(), fPhiMax));
 
 
   return err;
