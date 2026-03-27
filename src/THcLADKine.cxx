@@ -38,8 +38,9 @@ ClassImp(THcLADKine)
   fThetaMax  = 170.0;   // deg
   fPhiMin    = -50.0;  // deg
   fPhiMax    = +50.0;  // deg
-  fchisq_cut_withHodo = 30.0; // default chi2 cut for tracks with hodoscope hits
-  fchisq_cut_noHodo   = 15.0;  // default chi2 cut for tracks without hodoscope hits
+  fchisq_cut[0] = 20.0; // default chi2 cut for tracks with 2 hodo hits
+  fchisq_cut[1] = 15.0; // default chi2 cut for tracks with 1 hodo hit
+  fchisq_cut[2] = 10.0; // default chi2 cut for tracks with no hodo hits
   fSigma_GEM = 0.1; // default GEM resolution in cm
   fSigma_Hodo = 10; // default Hodoscope resolution in cm
 
@@ -202,8 +203,7 @@ Int_t THcLADKine::ReadDatabase(const TDatime &date) {
                                    { "ladkin.theta_max", &fThetaMax, kDouble, 0, 1 },
                                    { "ladkin.phi_min", &fPhiMin, kDouble, 0, 1 },
                                    { "ladkin.phi_max", &fPhiMax, kDouble, 0, 1 },
-                                   { "ladkin.chisq_cut_withHodo", &fchisq_cut_withHodo, kDouble, 0, 1 },
-                                   { "ladkin.chisq_cut_noHodo", &fchisq_cut_noHodo, kDouble, 0, 1 },
+                                   { "ladkin.chisq_cut", fchisq_cut, kDouble, 3, 1 },
                                    { 0 } };
   gHcParms->LoadParmValues((DBRequest *)&track_constraints, prefix);
 
@@ -234,13 +234,14 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
   //Get LADGoodHits for track matching 
   TClonesArray *LADHits_unfiltered = fHodoscope->GetLADGoodHits();
   Int_t nHits                      = LADHits_unfiltered->GetLast() + 1;
+  goodhit_n = 0;
   //////////////////////////////////////////////////////////////////////////////
   // Check track projection to vertex
   fGEMTracks    = fGEM->GetTracks();
   Int_t ntracks = fGEMTracks->GetLast() + 1;
   std::vector<bool> isGoodTrack(ntracks, false);
-  for (Int_t i = 0; i < ntracks; i++) {
-    THcLADGEMTrack *track = static_cast<THcLADGEMTrack *>(fGEMTracks->At(i));
+  for (Int_t iTrack = 0; iTrack < ntracks; iTrack++) {
+    THcLADGEMTrack *track = static_cast<THcLADGEMTrack *>(fGEMTracks->At(iTrack));
     if (track == nullptr)
       continue;
 
@@ -267,228 +268,131 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
       vertex.SetZ(fFixed_z[min_index]);
     }
 
-    Double_t gemdir[3], best_gemdir[3];
-    int bestHodoHitIndex=-1;
+    Double_t gemdir[3];
     gemdir[0] = TMath::ACos((v_hit2.Z() - v_hit1.Z()) / (v_hit2 - v_hit1).Mag()) * TMath::RadToDeg();
     gemdir[1] = TMath::ATan2((v_hit2.Y() - v_hit1.Y()) , (v_hit2.X() - v_hit1.X())) * TMath::RadToDeg();
     gemdir[2] = vertex.Z(); //Hopefully the GEM track will be the same as elecctron vertex Z
 
-    Double_t bestchisq=kBig;
+    Double_t bestchisq[2]={kBig,kBig};// 2 hodo hits, 1 hodo hit 
+    Double_t  best_gemdir[2][3];
+    int bestHodoHitIndex[2]={-1,-1};
     //loop over hodoscope hits to find the best match to the track projection
     for (int iHodoHit=0; iHodoHit<nHits; iHodoHit++) {
       THcGoodLADHit *hodo_hit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(iHodoHit));
       if (hodo_hit == nullptr)
         continue;
       // There might be one or two hits with a signle goodhit, need to check both
-      std::vector<TVector3> v_hits, v_resolutions;
+      std::vector<TVector3> v_hits;
+      std::vector<Double_t> v_resolutions;
       v_hits.push_back(v_hit1);
       v_hits.push_back(v_hit2);
       v_resolutions.push_back(fSigma_GEM);
       v_resolutions.push_back(fSigma_GEM);
-
+      int num_hodo_hits = 0;
       TVector3 v_hodo_hit;
       if (hodo_hit->GetPlaneHit0() >= 0) {
-        v_hodo_hit = fHodoscope->GetHitPosition(hodo_hit->GetPlaneHit0(), hodo_hit->GetPaddleHit0(), hodo_hit->GetHitYPosHit0());
+        v_hodo_hit = fHodoscope->GetHitPositionLab(hodo_hit->GetPlaneHit0(), hodo_hit->GetPaddleHit0(), hodo_hit->GetHitYPosHit0());
         v_hits.push_back(v_hodo_hit);
         v_resolutions.push_back(fSigma_Hodo);
+        num_hodo_hits++;
       } 
       if (hodo_hit->GetPlaneHit1() >= 0) {
-        v_hodo_hit = fHodoscope->GetHitPosition(hodo_hit->GetPlaneHit1(), hodo_hit->GetPaddleHit1(), hodo_hit->GetHitYPosHit1());
+        v_hodo_hit = fHodoscope->GetHitPositionLab(hodo_hit->GetPlaneHit1(), hodo_hit->GetPaddleHit1(), hodo_hit->GetHitYPosHit1());
         v_hits.push_back(v_hodo_hit);
         v_resolutions.push_back(fSigma_Hodo);
+        num_hodo_hits++;
       }
       Double_t dir[3];
       dir[0]=gemdir[0];
       dir[1]=gemdir[1];
       dir[2]=gemdir[2];
-      double chisq = FitTrack(vertex, v_hits, v_resolutions, dir);
+      Double_t chisq = FitTrack(vertex, v_hits, v_resolutions, dir);
       // Check if this is the best match so far, we only want to keep the best hodoscope hit for each track to avoid double counting hits
-      if (chisq>=0&&chisq<bestchisq) {
-        bestchisq=chisq;
-        best_gemdir[0]=dir[0];
-        best_gemdir[1]=dir[1];
-        best_gemdir[2]=dir[2];
-        bestHodoHitIndex=iHodoHit;
+      if (chisq>=0&&chisq<bestchisq[2-num_hodo_hits]) {
+        bestchisq[2-num_hodo_hits]=chisq;
+        best_gemdir[2-num_hodo_hits][0]=dir[0];
+        best_gemdir[2-num_hodo_hits][1]=dir[1];
+        best_gemdir[2-num_hodo_hits][2]=dir[2];
+        bestHodoHitIndex[2-num_hodo_hits]=iHodoHit;
       }
       v_hits.clear();
       v_resolutions.clear();
     }
-    if(bestchisq>=0&&bestchisq<fchisq_cut_withHodo) {
-      isGoodTrack[i] = true;
-      track->SetAngles(best_gemdir[0], best_gemdir[1]);
-      track->SetProjVertex(vertex.X(), vertex.Y(), best_gemdir[2]);
-      track->SetChisq(bestchisq);
+    if(bestchisq[0]>=0&&bestchisq[0]<fchisq_cut[0]) {
+      isGoodTrack[iTrack] = true;
+      track->SetAngles(best_gemdir[0][0], best_gemdir[0][1]);
+      track->SetProjVertex(vertex.X(), vertex.Y(), best_gemdir[0][2]);
+      track->SetChisq(bestchisq[0]);
       track->SetGoodD0(kTRUE);
-      track->SetD0(TMath::Abs(best_gemdir[2]-vertex.Z())*TMath::Sin(best_gemdir[0]*TMath::DegToRad()));
-      THcGoodLADHit *bestHodoHit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex));
+      track->SetD0(TMath::Abs(best_gemdir[0][2]-vertex.Z())*TMath::Sin(best_gemdir[0][0]*TMath::DegToRad()));
+      THcGoodLADHit *bestHodoHit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex[0]));
       track->SetBestHodoHit(bestHodoHit);
-      track->SetHasBestHodoHit(kTRUE);
+      track->SetHasHodoHit(2);
+      THcGoodLADHit *goodhit = new ((*fGoodLADHits)[goodhit_n]) THcGoodLADHit();
+      goodhit->CopyHit(0,0,bestHodoHit);
+      goodhit->CopyHit(1,1,bestHodoHit);
+      goodhit->SetTrackID(0, iTrack);
+      goodhit->SetTrackID(1, iTrack);
+      goodhit_n++;
+    }else if(bestchisq[1]>=0&&bestchisq[1]<fchisq_cut[1]) {
+      isGoodTrack[iTrack] = true;
+      track->SetAngles(best_gemdir[1][0], best_gemdir[1][1]);
+      track->SetProjVertex(vertex.X(), vertex.Y(), best_gemdir[1][2]);
+      track->SetChisq(bestchisq[1]);
+      track->SetGoodD0(kTRUE);
+      track->SetD0(TMath::Abs(best_gemdir[1][2]-vertex.Z())*TMath::Sin(best_gemdir[1][0]*TMath::DegToRad()));
+      THcGoodLADHit *bestHodoHit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex[1]));
+      track->SetBestHodoHit(bestHodoHit);
+      track->SetHasHodoHit(1);
+      THcGoodLADHit *goodhit = new ((*fGoodLADHits)[goodhit_n]) THcGoodLADHit();
+      goodhit->CopyHit(0,0,bestHodoHit);
+      goodhit->CopyHit(1,1,bestHodoHit);
+      goodhit->SetTrackID(0, iTrack);
+      goodhit->SetTrackID(1, iTrack);
+      goodhit_n++;
     }else {
       Double_t dir[3];
       dir[0]=gemdir[0];
       dir[1]=gemdir[1];
       dir[2]=gemdir[2];// if the track doesn't have a good hodoscope match, just fit to the GEM hits and vertex
-      double chisq= FitTrack(vertex, {v_hit1, v_hit2}, {fSigma_GEM, fSigma_GEM}, dir);
+      Double_t chisq= FitTrack(vertex, {v_hit1, v_hit2}, {fSigma_GEM, fSigma_GEM}, dir);
       track->SetChisq(chisq);// set chisq even if the fit fails so we can see why
-      if (chisq>=0&&chisq<fchisq_cut_noHodo) {
+      if (chisq>=0&&chisq<fchisq_cut[2]) {
         track->SetGoodD0(kTRUE);
-        isGoodTrack[i] = true;
+        isGoodTrack[iTrack] = true;
         track->SetAngles(dir[0], dir[1]);
         track->SetProjVertex(vertex.X(), vertex.Y(), dir[2]);
         track->SetD0(TMath::Abs(dir[2]-vertex.Z())*TMath::Sin(dir[0]*TMath::DegToRad()));
         track->SetBestHodoHit(nullptr);
-        track->SetHasBestHodoHit(kFALSE);
+        track->SetHasHodoHit(0);
       }else {
         //Still bad track, mark as bad and set parameters to default values
-        isGoodTrack[i] = false;
-        //cout<<"THcLADKine: Track fit failed for track "<<i<<" with error code "<<chisq<<endl;
+        isGoodTrack[iTrack] = false;
+        //cout<<"THcLADKine: Track fit failed for track "<<iTrack<<" with error code "<<chisq<<endl;
         track->SetAngles(-kBig, -kBig);
         track->SetProjVertex(-kBig, -kBig, -kBig);
         track->SetD0(-kBig);
+        track->SetGoodD0(kFALSE);
         continue;
       }
     }
 
     if (track->GetGoodD0()) {
-      if (d0 < fD0Cut_wVertex) {
-        isGoodTrack[i] = true;
+      if (track->GetD0()>0 && track->GetD0() < fD0Cut_wVertex) {
+        isGoodTrack[iTrack] = isGoodTrack[iTrack] && true;
       }
     } else {
-      if (d0 < fD0Cut_noVertex) {
-        isGoodTrack[i] = true;
+      if (track->GetD0() > 0 && track->GetD0() < fD0Cut_noVertex) {
+        isGoodTrack[iTrack] = isGoodTrack[iTrack] && true;
       }
     }
-    if(track->GetChisq()<0||track->GetChisq()>fchisq_cut_noHodo) {
-      isGoodTrack[i] = false;
+    if(track->GetChisq()<0) {
+      isGoodTrack[iTrack] = false;
     }
     if (track->GetdT() > fTrk_dtCut) {
-      isGoodTrack[i] = false;
+      isGoodTrack[iTrack] = false;
     }
   }
-/*
-  //////////////////////////////////////////////////////////////////////////////
-  // Remove hits with bad tracks and duplicate hits
-  TClonesArray *LADHits_unfiltered = fHodoscope->GetLADGoodHits();
-  Int_t nHits                      = LADHits_unfiltered->GetLast() + 1;
-  for (Int_t i = 0; i < nHits; i++) {
-    THcGoodLADHit *hit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(i));
-    if (hit == nullptr)
-      continue;
-
-    // Check if the hit has a track that points back to the origin.
-    Int_t track_id = hit->GetTrackIDHit0();
-    if (track_id < 0 || track_id >= ntracks)
-      continue;
-
-    // Get the track parameters
-    Int_t plane  = hit->GetPlaneHit0();
-    Int_t paddle = hit->GetPaddleHit0();
-
-
-    Int_t plane_loc; // Front vs back plane
-    if (plane == 0 || plane == 2 || plane == 4)
-      plane_loc = 0;
-    else
-      plane_loc = 1;
-
-    Int_t matching_hit_index = -1;
-    Int_t partner_hit_index  = -1;
-    for (Int_t j = 0; j < goodhit_n; j++) {
-      THcGoodLADHit *goodhit = static_cast<THcGoodLADHit *>(fGoodLADHits->At(j));
-      if (goodhit == nullptr)
-        continue;
-
-      // Check if the hit is already in the list
-      Int_t good_hit_plane  = plane_loc ? goodhit->GetPlaneHit1() : goodhit->GetPlaneHit0();
-      Int_t good_hit_paddle = plane_loc ? goodhit->GetPaddleHit1() : goodhit->GetPaddleHit0();
-      if (good_hit_plane == plane && good_hit_paddle == paddle) { //What if the same paddle is hit twice at different times?
-        matching_hit_index = j;
-        break;
-      }
-      // Check if the hit has a partner hit
-      Int_t partner_hit_track_id = plane_loc ? goodhit->GetTrackIDHit1() : goodhit->GetTrackIDHit0();
-      if (partner_hit_track_id == track_id) {
-        partner_hit_index = j;
-      }
-    }
-    if (matching_hit_index == -1 && partner_hit_index == -1) {
-      THcGoodLADHit *goodhit = new ((*fGoodLADHits)[goodhit_n]) THcGoodLADHit();
-      goodhit_n++;
-      goodhit->CopyHit(plane_loc, 0, hit); // Copy the new hit into the good hit
-      goodhit->SetTrackID(plane_loc, track_id);
-    }
-    if (matching_hit_index != -1) {
-      THcGoodLADHit *goodhit = static_cast<THcGoodLADHit *>(fGoodLADHits->At(matching_hit_index));
-      if (abs(hit->GetdTrkHorizHit0()) <
-          (plane_loc ? abs(goodhit->GetdTrkHorizHit1()) : abs(goodhit->GetdTrkHorizHit0()))) {
-
-        goodhit->CopyHit(plane_loc, 0, hit); // Copy the new hit into the good hit
-        goodhit->SetTrackID(plane_loc, track_id);
-      }
-    }
-    // Todo: Calculate beta, alpha, etc. for the hit
-    // FIXME. One track can still have multiple (distinct) hodo hits that are counted as good
-  }
-*/
-  //////////////////////////////////////////////////////////////////////////////
-  // Find matching front + back plane hits
-  // Create a vector of pairs to store matching hits for each track
-  std::vector<std::pair<Int_t, Int_t>> matchingHits(ntracks, {-1, -1});
-  std::vector<double> dTrk_horiz_values;
-
-  // TODO: This can probably be incorporated into the loop above
-  for (Int_t i = 0; i < goodhit_n; i++) {
-    THcGoodLADHit *goodhit = static_cast<THcGoodLADHit *>(fGoodLADHits->At(i));
-    if (goodhit == nullptr)
-      continue;
-
-    // Add dTrk_horiz values for both planes (if valid) to the vector
-    if (goodhit->GetdTrkHorizHit0() != 0) {
-      dTrk_horiz_values.push_back(goodhit->GetdTrkHorizHit0());
-    }
-    if (goodhit->GetdTrkHorizHit1() != 0) {
-      dTrk_horiz_values.push_back(goodhit->GetdTrkHorizHit1());
-    }
-
-    Int_t trackID0 = goodhit->GetTrackIDHit0();
-    Int_t trackID1 = goodhit->GetTrackIDHit1();
-
-    if (trackID0 >= 0 && trackID0 < ntracks) {
-      // Check if the track ID is already in the vector
-      if (matchingHits[trackID0].first == -1) {
-        // If it is, set the second hit index to the current index
-        matchingHits[trackID0].first = i;
-      } else if (dTrk_horiz_values[matchingHits[trackID0].first] > goodhit->GetdTrkHorizHit0()) {
-        matchingHits[trackID0].first = i;
-      }
-    }
-    if (trackID1 >= 0 && trackID1 < ntracks) {
-      // Check if the track ID is already in the vector
-      if (matchingHits[trackID1].second == -1) {
-        // If it is, set the second hit index to the current index
-        matchingHits[trackID1].second = i;
-      } else if (dTrk_horiz_values[matchingHits[trackID1].second] > goodhit->GetdTrkHorizHit1()) {
-        matchingHits[trackID1].second = i;
-      }
-    }
-  }
-
-  // Loop over the matching hits and set the partner hit index
-  for (auto &match : matchingHits) {
-    if (match.first != -1 && match.second != -1) {
-      THcGoodLADHit *firstHit  = static_cast<THcGoodLADHit *>(fGoodLADHits->At(match.first));
-      THcGoodLADHit *secondHit = static_cast<THcGoodLADHit *>(fGoodLADHits->At(match.second));
-      if (firstHit && secondHit) {
-        firstHit->CopyHit(1, 0, secondHit); // Copy the back (1) plane of the second hit into the first hit (0)
-
-        // Remove the second hit from the good hits array
-        fGoodLADHits->RemoveAt(match.second);
-        goodhit_n--;
-      }
-    }
-  }
-  fGoodLADHits->Compress(); // Compress the array to remove null entries
-
   // Calculate beta, alpha, tof, etc. for the hits
   for (Int_t i = 0; i < goodhit_n; i++) {
     THcGoodLADHit *goodhit = static_cast<THcGoodLADHit *>(fGoodLADHits->At(i));

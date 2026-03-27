@@ -594,7 +594,7 @@ Int_t THcLADHodoscope::FineProcess(TClonesArray &tracks) {
   return 0;
 }
 
-TVector3 THcLADHodoscope::GetHitPositionLab(int plane, int paddle, double ypos=0) {
+TVector3 THcLADHodoscope::GetHitPositionLab(int plane, int paddle, double ypos) {
   // Get the position of a hit in the hodoscope, given the plane and paddle number
   // This is a placeholder function and should be implemented based on the actual geometry of the hodoscope
   if (plane < 0 || plane >= fNPlanes) {

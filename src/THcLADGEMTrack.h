@@ -101,11 +101,11 @@ public:
   Bool_t GetGoodD0() const { return fhasGoodD0; }
   Double_t GetT() const { return fT; }
   Double_t GetdT() const { return fTdiff; }
-  bool GetHasHodoHit() const { return fHasHodoHit; }
+  short GetHasHodoHit() const { return fHasHodoHit; }
   THcGoodLADHit *GetBestHodoHit() const { return fBestHodoHit; }
   void SetBestHodoHit(THcGoodLADHit *hit) { fBestHodoHit = hit; }
 
-  void SetHasHodoHit(bool hasHodoHit) { fHasHodoHit = hasHodoHit; }
+  void SetHasHodoHit(short hasHodoHit) { fHasHodoHit = hasHodoHit; }
   void SetTrackID(int itrk) { fTrackID = itrk; }
   void SetD0(Double_t d0) { fD0 = d0; }
   void SetGoodD0(Bool_t good) { fhasGoodD0 = good; }
@@ -154,7 +154,7 @@ protected:
   Int_t fClustID1;
   Double_t fT;
   Double_t fTdiff;
-  bool fHasHodoHit;
+  short fHasHodoHit;
   Double_t chisq;
   Double_t ftheta; // track angle between the track and z-azis in degrees
   Double_t fphi;   // track angle between the track and x-azis in degrees
