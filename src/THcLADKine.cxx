@@ -34,10 +34,10 @@ ClassImp(THcLADKine)
 
   fZCellMin  = -15.0;   // cm
   fZCellMax  = +15.0;   // cm
-  fThetaMin  =  60.0;   // deg
-  fThetaMax  = 170.0;   // deg
-  fPhiMin    = -50.0;  // deg
-  fPhiMax    = +50.0;  // deg
+  fThetaMin  =  60.0*TMath::DegToRad();   // rad
+  fThetaMax  = 170.0*TMath::DegToRad();   // rad
+  fPhiMin    = -50.0*TMath::DegToRad();  // rad
+  fPhiMax    = +50.0*TMath::DegToRad();  // rad
   fchisq_cut[0] = 20.0; // default chi2 cut for tracks with 2 hodo hits
   fchisq_cut[1] = 15.0; // default chi2 cut for tracks with 1 hodo hit
   fchisq_cut[2] = 10.0; // default chi2 cut for tracks with no hodo hits
