@@ -6,6 +6,7 @@
 #include "THcLADGEM.h"
 #include "TObject.h"
 #include "TVector3.h"
+#include "THcGoodLADHit.h"
 
 class GEM2DHits {
 public:
@@ -101,6 +102,8 @@ public:
   Double_t GetT() const { return fT; }
   Double_t GetdT() const { return fTdiff; }
   bool GetHasHodoHit() const { return fHasHodoHit; }
+  THcGoodLADHit *GetBestHodoHit() const { return fBestHodoHit; }
+  void SetBestHodoHit(THcGoodLADHit *hit) { fBestHodoHit = hit; }
 
   void SetHasHodoHit(bool hasHodoHit) { fHasHodoHit = hasHodoHit; }
   void SetTrackID(int itrk) { fTrackID = itrk; }
@@ -157,6 +160,7 @@ protected:
   Double_t fphi;   // track angle between the track and x-azis in degrees
 
   GEM2DHits *fSp;
+  THcGoodLADHit *fBestHodoHit; // pointer to the best hodoscope hit associated with this track, if any
 
 private:
   THcLADGEMTrack(const THcLADGEMTrack &);

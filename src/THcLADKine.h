@@ -64,6 +64,9 @@ protected:
   Double_t fPhiMin;    // default -50.0 deg
   Double_t fPhiMax;    // default +50.0 deg
 
+  Double_t fchisq_cut_withHodo;
+  Double_t fchisq_cut_noHodo;
+
 
 
 

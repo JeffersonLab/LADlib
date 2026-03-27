@@ -38,6 +38,8 @@ ClassImp(THcLADKine)
   fThetaMax  = 170.0;   // deg
   fPhiMin    = -50.0;  // deg
   fPhiMax    = +50.0;  // deg
+  fchisq_cut_withHodo = 30.0; // default chi2 cut for tracks with hodoscope hits
+  fchisq_cut_noHodo   = 15.0;  // default chi
 
 }
 //_____________________________________________________________________________
@@ -197,6 +199,8 @@ Int_t THcLADKine::ReadDatabase(const TDatime &date) {
                                    { "ladkin.theta_max", &fThetaMax, kDouble, 0, 1 },
                                    { "ladkin.phi_min", &fPhiMin, kDouble, 0, 1 },
                                    { "ladkin.phi_max", &fPhiMax, kDouble, 0, 1 },
+                                   { "ladkin.chisq_cut_withHodo", &fchisq_cut_withHodo, kDouble, 0, 1 },
+                                   { "ladkin.chisq_cut_noHodo", &fchisq_cut_noHodo, kDouble, 0, 1 },
                                    { 0 } };
   gHcParms->LoadParmValues((DBRequest *)&track_constraints, prefix);
 
@@ -224,6 +228,9 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
   fTrack = fSpectro->GetGoldenTrack();
   CalculateTVertex();
 
+  //Get LADhodohits, 
+  TClonesArray *LADHits_unfiltered = fHodoscope->GetLADGoodHits();
+  Int_t nHits                      = LADHits_unfiltered->GetLast() + 1;
   //////////////////////////////////////////////////////////////////////////////
   // Check track projection to vertex
   fGEMTracks    = fGEM->GetTracks();
@@ -257,26 +264,71 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
       vertex.SetZ(fFixed_z[min_index]);
     }
 
-    Double_t dir[3];
-    dir[0] = TMath::ACos((v_hit2.Z() - v_hit1.Z()) / (v_hit2 - v_hit1).Mag()) * TMath::RadToDeg();
-    dir[1] = TMath::ATan2((v_hit2.Y() - v_hit1.Y()) , (v_hit2.X() - v_hit1.X())) * TMath::RadToDeg();
-    dir[2] = vertex.Z();
-    //Only fitting GEM hits for now, need to add LAD hits later
-    Double_t chisq=-kBig;
-    chisq= FitTrack(vertex, {v_hit1, v_hit2}, {0.1,0.1}, dir);//hardcoded resolution for now, should be parameterized based on detector performance
-    track->SetChisq(chisq);// set chisq even if the fit fails so we can see why
-    if(chisq<0) {
-      isGoodTrack[i] = false;
-      //cout<<"THcLADKine: Track fit failed for track "<<i<<" with error code "<<chisq<<endl;
-      track->SetAngles(-kBig, -kBig);
-      track->SetProjVertex(-kBig, -kBig, -kBig);
-      track->SetD0(-kBig);
-      continue;
+    Double_t gemdir[3], best_gemdir[3];
+    int bestHodoHitIndex=-1;
+    gemdir[0] = TMath::ACos((v_hit2.Z() - v_hit1.Z()) / (v_hit2 - v_hit1).Mag()) * TMath::RadToDeg();
+    gemdir[1] = TMath::ATan2((v_hit2.Y() - v_hit1.Y()) , (v_hit2.X() - v_hit1.X())) * TMath::RadToDeg();
+    gemdir[2] = vertex.Z();
+
+    Double_t bestchisq=kBig;
+    for (int iHodoHit=0; iHodoHit<nHits; iHodoHit++) {
+      THcGoodLADHit *hodo_hit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(iHodoHit));
+      if (hodo_hit == nullptr)
+        continue;
+        int plane = hodo_hit->GetPlaneHit0() >= 0 ? hodo_hit->GetPlaneHit0() : hodo_hit->GetPlaneHit1();
+        int paddle = hodo_hit->GetPlaneHit0() >= 0 ? hodo_hit->GetPaddleHit0() : hodo_hit->GetPaddleHit1();
+        double yPos = hodo_hit->GetPlaneHit0() >= 0 ? hodo_hit->GetHitYPosHit0() : hodo_hit->GetHitYPosHit1();
+
+        TVector3 hodo_hitPos = fHodoscope->GetHitPosition(plane, paddle, yPos);
+        double res_hodo = 10; // cm, hardcoded for now, should be parameterized based on detector performance
+        Double_t dir[3];
+        dir[0]=gemdir[0];
+        dir[1]=gemdir[1];
+        dir[2]=gemdir[2];
+        double chisq = FitTrack(vertex, {v_hit1, v_hit2, v_hodo_hit}, {0.1, 0.1, res_hodo}, dir);
+        if (chisq>=0&&chisq<bestchisq) {
+          bestchisq=chisq;
+          best_gemdir[0]=dir[0];
+          best_gemdir[1]=dir[1];
+          best_gemdir[2]=dir[2];
+          bestHodoHitIndex=iHodoHit;
+        }
     }
-    track->SetAngles(dir[0], dir[1]);
-    track->SetProjVertex(vertex.X(), vertex.Y(), dir[2]);
-    double d0 = TMath::Abs(dir[2]-vertex.Z());
-    track->SetD0(d0);
+    if(bestchisq>=0&&bestchisq<fchisq_cut_withHodo) {
+      isGoodTrack[i] = true;
+      track->SetAngles(best_gemdir[0], best_gemdir[1]);
+      track->SetProjVertex(vertex.X(), vertex.Y(), best_gemdir[2]);
+      track->SetChisq(bestchisq);
+      track->SetGoodD0(kTRUE);
+      track->SetD0(TMath::Abs(best_gemdir[2]-vertex.Z())*TMath::Sin(best_gemdir[0]*TMath::DegToRad()));
+      THcGoodLADHit *bestHodoHit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex));
+      track->SetBestHodoHit(bestHodoHit);
+      track->SetHasBestHodoHit(kTRUE);
+    }
+    if(bestchisq<0||bestchisq>=fchisq_cut_withHodo) {
+      Double_t dir[3];
+      dir[0]=gemdir[0];
+      dir[1]=gemdir[1];
+      dir[2]=gemdir[2];
+      double chisq= FitTrack(vertex, {v_hit1, v_hit2}, {0.1,0.1}, dir);//hardcoded resolution for now, should be parameterized based on detector performance
+      track->SetChisq(chisq);// set chisq even if the fit fails so we can see why
+      if (chisq>=0&&chisq<fchisq_cut_noHodo) {
+        track->SetGoodD0(kTRUE);
+        isGoodTrack[i] = true;
+        track->SetAngles(dir[0], dir[1]);
+        track->SetProjVertex(vertex.X(), vertex.Y(), dir[2]);
+        track->SetD0(TMath::Abs(dir[2]-vertex.Z())*TMath::Sin(dir[0]*TMath::DegToRad()));
+        track->SetBestHodoHit(nullptr);
+        track->SetHasBestHodoHit(kFALSE);
+      }else {
+        isGoodTrack[i] = false;
+        //cout<<"THcLADKine: Track fit failed for track "<<i<<" with error code "<<chisq<<endl;
+        track->SetAngles(-kBig, -kBig);
+        track->SetProjVertex(-kBig, -kBig, -kBig);
+        track->SetD0(-kBig);
+        continue;
+      }
+    }
 
     if (track->GetGoodD0()) {
       if (d0 < fD0Cut_wVertex) {
@@ -287,12 +339,14 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
         isGoodTrack[i] = true;
       }
     }
-
+    if(track->GetChisq()<0||track->GetChisq()>fchisq_cut_noHodo) {
+      isGoodTrack[i] = false;
+    }
     if (track->GetdT() > fTrk_dtCut) {
       isGoodTrack[i] = false;
     }
   }
-
+/*
   //////////////////////////////////////////////////////////////////////////////
   // Remove hits with bad tracks and duplicate hits
   TClonesArray *LADHits_unfiltered = fHodoscope->GetLADGoodHits();
@@ -304,14 +358,13 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
 
     // Check if the hit has a track that points back to the origin.
     Int_t track_id = hit->GetTrackIDHit0();
-    if (track_id < 0 || track_id >= ntracks || !isGoodTrack[track_id])
+    if (track_id < 0 || track_id >= ntracks)
       continue;
 
     // Get the track parameters
     Int_t plane  = hit->GetPlaneHit0();
     Int_t paddle = hit->GetPaddleHit0();
 
-    TVector3 hit_pos = fHodoscope->GetHitPositionLab(plane, paddle,hit->GetYposHit0());
 
     Int_t plane_loc; // Front vs back plane
     if (plane == 0 || plane == 2 || plane == 4)
@@ -329,7 +382,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
       // Check if the hit is already in the list
       Int_t good_hit_plane  = plane_loc ? goodhit->GetPlaneHit1() : goodhit->GetPlaneHit0();
       Int_t good_hit_paddle = plane_loc ? goodhit->GetPaddleHit1() : goodhit->GetPaddleHit0();
-      if (good_hit_plane == plane && good_hit_paddle == paddle) {
+      if (good_hit_plane == plane && good_hit_paddle == paddle) { //What if the same paddle is hit twice at different times?
         matching_hit_index = j;
         break;
       }
@@ -357,7 +410,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     // Todo: Calculate beta, alpha, etc. for the hit
     // FIXME. One track can still have multiple (distinct) hodo hits that are counted as good
   }
-
+*/
   //////////////////////////////////////////////////////////////////////////////
   // Find matching front + back plane hits
   // Create a vector of pairs to store matching hits for each track
@@ -615,6 +668,30 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
   if (dir[0] < 0 || dir[0] > 180 || dir[1] < -180 || dir[1] > 180) {
     return -4; // Invalid initial direction values
   }
+  //check if the gem track is pointing to the hodoscope hits if there are any, return negative chisq if not
+  if (nPoints >2){
+    double sx = TMath::Sin(dir[0] * TMath::DegToRad()) * TMath::Cos(dir[1] * TMath::DegToRad());
+    double sy = TMath::Sin(dir[0] * TMath::DegToRad()) * TMath::Sin(dir[1] * TMath::DegToRad());
+    double sz = TMath::Cos(dir[0] * TMath::DegToRad());
+    for (int i = 2; i < nPoints; i++) {
+      //closest approach of the track to the point
+      double t = ((sp_positions[i].X() - sp_positions[0].X()) * sx +
+                  (sp_positions[i].Y() - sp_positions[0].Y()) * sy +
+                  (sp_positions[i].Z() - sp_positions[0].Z()) * sz);
+      double x_closest = sp_positions[0].X() + t * sx;
+      double y_closest = sp_positions[0].Y() + t * sy;
+      double z_closest = sp_positions[0].Z() + t * sz;
+      double dx = sp_positions[i].X() - x_closest;
+      double dy = sp_positions[i].Y() - y_closest;
+      double dz = sp_positions[i].Z() - z_closest;
+      double dist2 = dx*dx +  dz*dz;
+      if (dist2 > (22*22)) { // if the track is more than 22cm away from the hodoscope hit, return negative chisq
+        return -5; // Track does not point to the hodoscope hit
+      }
+    }
+  }
+
+
   //requireing the track to originate from vertex (x,y), and only fitting for the track direction (theta, phi) and z vertex position. 
   double chi2 = -kBig;
   ROOT::Math::Minimizer *minimizer = ROOT::Math::Factory::CreateMinimizer("Minuit2", "Migrad");
@@ -647,22 +724,19 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
           dist2 = 0;
         }
       }
-      chi2_local += (dist2+ dy*dy) / (sp_resolutions[i]*sp_resolutions[i]);
+      chi2_local += (dist2+ dy*dy) / (sp_resolutions[i]*sp_resolutions[i]);//do we want to weight the vertical and horizontal residuals differently based on detector performance?
     }
     return chi2_local;
   },3);
   minimizer->SetFunction(f);
 
   double initial_params[3] = {dir[0], dir[1], vertex.Z()};
-  minimizer->SetVariable(0, "theta", initial_params[0], 0.1);
-  minimizer->SetVariableLimits(0, fThetaMin, fThetaMax);// Limit theta to be between 45 and 180 degrees to avoid unphysical solutions (tracks going backwards)
-  minimizer->SetVariable(1, "phi", initial_params[1], 0.1);
-  minimizer->SetVariableLimits(1, fPhiMin, fPhiMax);//Limit phi as the GEMs are only on the left side of the target in beam direction
-  minimizer->SetVariable(2, "z_vertex", initial_params[2], 0.1);
-  minimizer->SetVariableLimits(2, fZCellMin, fZCellMax); //the target length is 20cm, this should be more than wide enough
+  minimizer->SetLimitedVariable(0, "theta", initial_params[0], 0.1, fThetaMin, fThetaMax);// Limit theta  to avoid unphysical solutions (tracks going backwards)
+  minimizer->SetLimitedVariable(1, "phi", initial_params[1], 0.1, fPhiMin, fPhiMax);//Limit phi as the GEMs are only on the left side of the target in beam direction
+  minimizer->SetLimitedVariable(2, "z_vertex", initial_params[2], 0.1, fZCellMin, fZCellMax); //the target length is 20cm
   minimizer->Minimize();
   if (minimizer->Status() != 0) {
-    return -5; // Fit did not converge
+    return -6; // Fit did not converge
   }
   const double *best_params = minimizer->X();
   dir[0] = best_params[0]; // theta in degree
