@@ -39,7 +39,10 @@ ClassImp(THcLADKine)
   fPhiMin    = -50.0;  // deg
   fPhiMax    = +50.0;  // deg
   fchisq_cut_withHodo = 30.0; // default chi2 cut for tracks with hodoscope hits
-  fchisq_cut_noHodo   = 15.0;  // default chi
+  fchisq_cut_noHodo   = 15.0;  // default chi2 cut for tracks without hodoscope hits
+  fSigma_GEM = 0.1; // default GEM resolution in cm
+  fSigma_Hodo = 10; // default Hodoscope resolution in cm
+
 
 }
 //_____________________________________________________________________________
@@ -228,7 +231,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
   fTrack = fSpectro->GetGoldenTrack();
   CalculateTVertex();
 
-  //Get LADhodohits, 
+  //Get LADGoodHits for track matching 
   TClonesArray *LADHits_unfiltered = fHodoscope->GetLADGoodHits();
   Int_t nHits                      = LADHits_unfiltered->GetLast() + 1;
   //////////////////////////////////////////////////////////////////////////////
@@ -268,31 +271,47 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     int bestHodoHitIndex=-1;
     gemdir[0] = TMath::ACos((v_hit2.Z() - v_hit1.Z()) / (v_hit2 - v_hit1).Mag()) * TMath::RadToDeg();
     gemdir[1] = TMath::ATan2((v_hit2.Y() - v_hit1.Y()) , (v_hit2.X() - v_hit1.X())) * TMath::RadToDeg();
-    gemdir[2] = vertex.Z();
+    gemdir[2] = vertex.Z(); //Hopefully the GEM track will be the same as elecctron vertex Z
 
     Double_t bestchisq=kBig;
+    //loop over hodoscope hits to find the best match to the track projection
     for (int iHodoHit=0; iHodoHit<nHits; iHodoHit++) {
       THcGoodLADHit *hodo_hit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(iHodoHit));
       if (hodo_hit == nullptr)
         continue;
-        int plane = hodo_hit->GetPlaneHit0() >= 0 ? hodo_hit->GetPlaneHit0() : hodo_hit->GetPlaneHit1();
-        int paddle = hodo_hit->GetPlaneHit0() >= 0 ? hodo_hit->GetPaddleHit0() : hodo_hit->GetPaddleHit1();
-        double yPos = hodo_hit->GetPlaneHit0() >= 0 ? hodo_hit->GetHitYPosHit0() : hodo_hit->GetHitYPosHit1();
+      // There might be one or two hits with a signle goodhit, need to check both
+      std::vector<TVector3> v_hits, v_resolutions;
+      v_hits.push_back(v_hit1);
+      v_hits.push_back(v_hit2);
+      v_resolutions.push_back(fSigma_GEM);
+      v_resolutions.push_back(fSigma_GEM);
 
-        TVector3 hodo_hitPos = fHodoscope->GetHitPosition(plane, paddle, yPos);
-        double res_hodo = 10; // cm, hardcoded for now, should be parameterized based on detector performance
-        Double_t dir[3];
-        dir[0]=gemdir[0];
-        dir[1]=gemdir[1];
-        dir[2]=gemdir[2];
-        double chisq = FitTrack(vertex, {v_hit1, v_hit2, v_hodo_hit}, {0.1, 0.1, res_hodo}, dir);
-        if (chisq>=0&&chisq<bestchisq) {
-          bestchisq=chisq;
-          best_gemdir[0]=dir[0];
-          best_gemdir[1]=dir[1];
-          best_gemdir[2]=dir[2];
-          bestHodoHitIndex=iHodoHit;
-        }
+      TVector3 v_hodo_hit;
+      if (hodo_hit->GetPlaneHit0() >= 0) {
+        v_hodo_hit = fHodoscope->GetHitPosition(hodo_hit->GetPlaneHit0(), hodo_hit->GetPaddleHit0(), hodo_hit->GetHitYPosHit0());
+        v_hits.push_back(v_hodo_hit);
+        v_resolutions.push_back(fSigma_Hodo);
+      } 
+      if (hodo_hit->GetPlaneHit1() >= 0) {
+        v_hodo_hit = fHodoscope->GetHitPosition(hodo_hit->GetPlaneHit1(), hodo_hit->GetPaddleHit1(), hodo_hit->GetHitYPosHit1());
+        v_hits.push_back(v_hodo_hit);
+        v_resolutions.push_back(fSigma_Hodo);
+      }
+      Double_t dir[3];
+      dir[0]=gemdir[0];
+      dir[1]=gemdir[1];
+      dir[2]=gemdir[2];
+      double chisq = FitTrack(vertex, v_hits, v_resolutions, dir);
+      // Check if this is the best match so far, we only want to keep the best hodoscope hit for each track to avoid double counting hits
+      if (chisq>=0&&chisq<bestchisq) {
+        bestchisq=chisq;
+        best_gemdir[0]=dir[0];
+        best_gemdir[1]=dir[1];
+        best_gemdir[2]=dir[2];
+        bestHodoHitIndex=iHodoHit;
+      }
+      v_hits.clear();
+      v_resolutions.clear();
     }
     if(bestchisq>=0&&bestchisq<fchisq_cut_withHodo) {
       isGoodTrack[i] = true;
@@ -304,13 +323,12 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
       THcGoodLADHit *bestHodoHit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex));
       track->SetBestHodoHit(bestHodoHit);
       track->SetHasBestHodoHit(kTRUE);
-    }
-    if(bestchisq<0||bestchisq>=fchisq_cut_withHodo) {
+    }else {
       Double_t dir[3];
       dir[0]=gemdir[0];
       dir[1]=gemdir[1];
-      dir[2]=gemdir[2];
-      double chisq= FitTrack(vertex, {v_hit1, v_hit2}, {0.1,0.1}, dir);//hardcoded resolution for now, should be parameterized based on detector performance
+      dir[2]=gemdir[2];// if the track doesn't have a good hodoscope match, just fit to the GEM hits and vertex
+      double chisq= FitTrack(vertex, {v_hit1, v_hit2}, {fSigma_GEM, fSigma_GEM}, dir);
       track->SetChisq(chisq);// set chisq even if the fit fails so we can see why
       if (chisq>=0&&chisq<fchisq_cut_noHodo) {
         track->SetGoodD0(kTRUE);
@@ -321,6 +339,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
         track->SetBestHodoHit(nullptr);
         track->SetHasBestHodoHit(kFALSE);
       }else {
+        //Still bad track, mark as bad and set parameters to default values
         isGoodTrack[i] = false;
         //cout<<"THcLADKine: Track fit failed for track "<<i<<" with error code "<<chisq<<endl;
         track->SetAngles(-kBig, -kBig);

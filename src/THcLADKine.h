@@ -67,6 +67,9 @@ protected:
   Double_t fchisq_cut_withHodo;
   Double_t fchisq_cut_noHodo;
 
+  Double_t fSigma_GEM; // GEM resolution in cm, used for track fitting, should be set based on detector performance
+  Double_t fSigma_Hodo; // Hodoscope resolution in cm, used for track fitting, should be set based on detector performance
+
 
 
 
