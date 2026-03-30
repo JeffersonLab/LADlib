@@ -480,8 +480,6 @@ void THcLADKine::CalculateTVertex() {
   if (tmp > 2)
     tmp -= rf_period;
   fTVertex_RFcorr = fTVertex - tmp;
-  cout << "Run: " << *runnum << ", RF time: " << fRFTime << ", Vertex time (uncorrected): " << fTVertex
-       << ", Vertex time (RF corrected): " << fTVertex_RFcorr << endl;
 
   return;
 }
