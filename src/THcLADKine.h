@@ -56,6 +56,8 @@ protected:
   Int_t n_rf_offsets;
   Double_t *rf_offset;
   Double_t rf_period;
+  TVector3 vertex;
+  Double_t lightSpeed = 29.9792458; // Speed of light in cm/ns
 
   Double_t fZCellMin;  // default -15.0 cm
   Double_t fZCellMax;  // default +15.0 cm
