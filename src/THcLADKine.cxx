@@ -31,6 +31,12 @@ ClassImp(THcLADKine)
   n_rf_offsets    = 0;
   rf_period       = 4.00801; // Default RF period in ns
 
+  fFrontPlaneEdepCut = 100.0; // MeV
+  fBackPlaneDtMin    = 2.8;   // ns
+  fBackPlaneDtMax    = 10.0;  // ns
+  fBackPlaneYDiag    = 35.0;  // MeV
+  fBackPlaneXDiag    = 5.0;   // ns
+
   fZCellMin     = -15.0;                     // cm
   fZCellMax     = +15.0;                     // cm
   fThetaMin     = 60.0 * TMath::DegToRad();  // rad
@@ -155,6 +161,11 @@ Int_t THcLADKine::ReadDatabase(const TDatime &date) {
                       {"global_time_offset", &fglobal_time_offset, kDouble, 0, 1},
                       {"trk_dt_cut", &fTrk_dtCut, kDouble, 0, 1},
                       {"_rf_period", &rf_period, kDouble, 0, 1},
+                      {"proton_front_edep_cut", &fFrontPlaneEdepCut, kDouble, 0, 1},
+                      {"proton_back_dt_min", &fBackPlaneDtMin, kDouble, 0, 1},
+                      {"proton_back_dt_max", &fBackPlaneDtMax, kDouble, 0, 1},
+                      {"proton_back_y_diag", &fBackPlaneYDiag, kDouble, 0, 1},
+                      {"proton_back_x_diag", &fBackPlaneXDiag, kDouble, 0, 1},
                       {0}};
   gHcParms->LoadParmValues((DBRequest *)&list, prefix);
 
@@ -523,7 +534,44 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     }
   }
 
+  MakeProtonCut(LADHits_unfiltered);
+
   return kOK;
+}
+//_____________________________________________________________________________
+void THcLADKine::MakeProtonCut(TClonesArray *hits) {
+  // Front plane (index 0): is_proton if edep_MeV > 100
+  // Back plane  (index 1): is_proton if point (dt, edep_MeV) is above the line
+  //   through (0,300) and (5,0), i.e. edep_MeV > 300 - 60*dt
+  //   where dt = hit_time[1] - hit_time[0] in ns
+
+  Int_t nHits = hits->GetLast() + 1;
+  for (Int_t i = 0; i < nHits; i++) {
+    THcGoodLADHit *hit = static_cast<THcGoodLADHit *>(hits->At(i));
+    if (hit == nullptr)
+      continue;
+
+    // Front plane
+    if (hit->GetPlaneHit0() >= 0 && hit->GetPlaneHit0() < 999) {
+      hit->SetIsProton(0, hit->GetHitEdepMeVHit0() > fFrontPlaneEdepCut);
+    }
+
+    // Back plane: piecewise boundary
+    //   dt < dt_min or dt > dt_max  -> not proton
+    //   dt_min <= dt <= x_diag      -> proton if edep > diagonal (y_diag scaled linearly to 0)
+    //   x_diag < dt < dt_max        -> proton if edep > 0
+    if (hit->GetPlaneHit1() >= 0 && hit->GetPlaneHit1() < 999) {
+      Double_t edep      = hit->GetHitEdepMeVHit1();
+      Double_t dt        = hit->GetHitTimeHit1() - hit->GetHitTimeHit0();
+      Bool_t   is_proton = kFALSE;
+      if (dt > fBackPlaneDtMin && dt < fBackPlaneDtMax) {
+        Double_t cut_y = TMath::Max(0.0, fBackPlaneYDiag * (fBackPlaneXDiag - dt) /
+                                             (fBackPlaneXDiag - fBackPlaneDtMin));
+        is_proton = edep > cut_y;
+      }
+      hit->SetIsProton(1, is_proton);
+    }
+  }
 }
 //_____________________________________________________________________________
 void THcLADKine::CalculateTVertex() {

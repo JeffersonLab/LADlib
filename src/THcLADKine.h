@@ -68,6 +68,12 @@ protected:
 
   Double_t fchisq_cut[2];//chisq difference between 1 and 2 hodo hit track fits, used to determine if we accept tracks with only 1 hodo hit (if chisq_2hit - chisq_1hit > fchisq_cut[0]), or if we have no hodo hits (if chisq_1hit - chisq_0hit < fchisq_cut[1])
 
+  Double_t fFrontPlaneEdepCut; // MeV threshold for front-plane proton ID (default 100)
+  Double_t fBackPlaneDtMin;    // dt (ns) of vertical left edge of back-plane proton cut (default 2.8)
+  Double_t fBackPlaneDtMax;    // dt (ns) of vertical right edge; hits beyond here are not proton (default 10)
+  Double_t fBackPlaneYDiag;    // edep (MeV) at the top of the diagonal segment (default 35)
+  Double_t fBackPlaneXDiag;    // dt (ns) where the diagonal meets y=0 (default 5)
+
   Double_t fSigma_GEM; // GEM resolution in cm, used for track fitting, should be set based on detector performance
   Double_t fSigma_Hodo; // Hodoscope resolution in cm, used for track fitting, should be set based on detector performance
 
@@ -79,6 +85,7 @@ protected:
   Double_t CalculateToF(Double_t t_raw);
   Double_t CalculateTOFRFcorr(Double_t t_raw);
   Double_t FitTrack(TVector3 vertex, std::vector<TVector3> sp_positions, std::vector<double> sp_resolutions, double dir[3]);
+  void MakeProtonCut(TClonesArray *hits);
 
   ClassDef(THcLADKine, 0)
 };
