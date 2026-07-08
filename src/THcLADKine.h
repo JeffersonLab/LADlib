@@ -59,14 +59,16 @@ protected:
   TVector3 vertex;
   Double_t lightSpeed = 29.9792458; // Speed of light in cm/ns
 
-  Double_t fZCellMin;  // default -15.0 cm
-  Double_t fZCellMax;  // default +15.0 cm
-  Double_t fThetaMin;  // default 60.0 deg
-  Double_t fThetaMax;  // default 170.0 deg
-  Double_t fPhiMin;    // default -50.0 deg
-  Double_t fPhiMax;    // default +50.0 deg
+  Double_t fZCellMin; // default -15.0 cm
+  Double_t fZCellMax; // default +15.0 cm
+  Double_t fThetaMin; // default 60.0 deg
+  Double_t fThetaMax; // default 170.0 deg
+  Double_t fPhiMin;   // default -50.0 deg
+  Double_t fPhiMax;   // default +50.0 deg
 
-  Double_t fchisq_cut[2];//chisq difference between 1 and 2 hodo hit track fits, used to determine if we accept tracks with only 1 hodo hit (if chisq_2hit - chisq_1hit > fchisq_cut[0]), or if we have no hodo hits (if chisq_1hit - chisq_0hit < fchisq_cut[1])
+  Double_t fchisq_cut[2]; // chisq difference between 1 and 2 hodo hit track fits, used to determine if we accept tracks
+                          // with only 1 hodo hit (if chisq_2hit - chisq_1hit > fchisq_cut[0]), or if we have no hodo
+                          // hits (if chisq_1hit - chisq_0hit < fchisq_cut[1])
 
   Double_t fFrontPlaneEdepCut; // MeV threshold for front-plane proton ID (default 100)
   Double_t fBackPlaneDtMin;    // dt (ns) of vertical left edge of back-plane proton cut (default 2.8)
@@ -75,16 +77,15 @@ protected:
   Double_t fBackPlaneXDiag;    // dt (ns) where the diagonal meets y=0 (default 5)
 
   Double_t fSigma_GEM; // GEM resolution in cm, used for track fitting, should be set based on detector performance
-  Double_t fSigma_Hodo; // Hodoscope resolution in cm, used for track fitting, should be set based on detector performance
-
-
-
+  Double_t
+      fSigma_Hodo; // Hodoscope resolution in cm, used for track fitting, should be set based on detector performance
 
   virtual Int_t DefineVariables(EMode mode = kDefine);
   void CalculateTVertex();
   Double_t CalculateToF(Double_t t_raw);
   Double_t CalculateTOFRFcorr(Double_t t_raw);
-  Double_t FitTrack(TVector3 vertex, std::vector<TVector3> sp_positions, std::vector<double> sp_resolutions, double dir[3]);
+  Double_t FitTrack(TVector3 vertex, std::vector<TVector3> sp_positions, std::vector<double> sp_resolutions,
+                    double dir[3]);
   void MakeProtonCut(TClonesArray *hits);
 
   ClassDef(THcLADKine, 0)

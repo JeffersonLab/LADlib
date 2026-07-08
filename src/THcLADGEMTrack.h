@@ -4,9 +4,9 @@
 // LAD GEM Track Object
 
 #include "DataType.h"
+#include "THcGoodLADHit.h"
 #include "TObject.h"
 #include "TVector3.h"
-#include "THcGoodLADHit.h"
 
 class GEM2DHits {
 public:
@@ -57,7 +57,7 @@ public:
   Bool_t IsGoodHit;
   Double_t ADCMean; // average adc sum
   Double_t ADCasym;
-  Int_t spID;   // this Space point's ID
+  Int_t spID; // this Space point's ID
   Int_t trackID;
   Int_t clusID[2]; // associated cluster IDs
   double corrcoeff;
@@ -139,12 +139,13 @@ public:
 
   GEM2DHits GetSpacePoint(int isp) { return fSp[isp]; }
   virtual void AddSpacePoint(GEM2DHits sp);
-  Int_t GetSpID_0() const {return fSp[0].spID;};
-  Int_t GetSpID_1() const {return fSp[1].spID;};
+  Int_t GetSpID_0() const { return fSp[0].spID; };
+  Int_t GetSpID_1() const { return fSp[1].spID; };
   int GetSpacePointID_0U() { return fSp[0].clusID[0]; }
   int GetSpacePointID_0V() { return fSp[0].clusID[1]; }
   int GetSpacePointID_1U() { return fSp[1].clusID[0]; }
   int GetSpacePointID_1V() { return fSp[1].clusID[1]; }
+
 protected:
   Int_t fNSp;
   Double_t fProjVz;

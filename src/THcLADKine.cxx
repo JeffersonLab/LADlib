@@ -561,12 +561,12 @@ void THcLADKine::MakeProtonCut(TClonesArray *hits) {
     //   dt_min <= dt <= x_diag      -> proton if edep > diagonal (y_diag scaled linearly to 0)
     //   x_diag < dt < dt_max        -> proton if edep > 0
     if (hit->GetPlaneHit1() >= 0 && hit->GetPlaneHit1() < 999) {
-      Double_t edep      = hit->GetHitEdepMeVHit1();
-      Double_t dt        = hit->GetHitTimeHit1() - hit->GetHitTimeHit0();
-      Bool_t   is_proton = kFALSE;
+      Double_t edep    = hit->GetHitEdepMeVHit1();
+      Double_t dt      = hit->GetHitTimeHit1() - hit->GetHitTimeHit0();
+      Bool_t is_proton = kFALSE;
       if (dt > fBackPlaneDtMin && dt < fBackPlaneDtMax) {
-        Double_t cut_y = TMath::Max(0.0, fBackPlaneYDiag * (fBackPlaneXDiag - dt) /
-                                             (fBackPlaneXDiag - fBackPlaneDtMin));
+        Double_t cut_y =
+            TMath::Max(0.0, fBackPlaneYDiag * (fBackPlaneXDiag - dt) / (fBackPlaneXDiag - fBackPlaneDtMin));
         is_proton = edep > cut_y;
       }
       hit->SetIsProton(1, is_proton);
@@ -748,8 +748,8 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
     for (int i = 2; i < nPoints; i++) {
       // closest approach of the track to the point
       double t         = ((sp_positions[i].X() - sp_positions[0].X()) * dir_vec.X() +
-                  (sp_positions[i].Y() - sp_positions[0].Y()) * dir_vec.Y() +
-                  (sp_positions[i].Z() - sp_positions[0].Z()) * dir_vec.Z());
+                          (sp_positions[i].Y() - sp_positions[0].Y()) * dir_vec.Y() +
+                          (sp_positions[i].Z() - sp_positions[0].Z()) * dir_vec.Z());
       double x_closest = sp_positions[0].X() + t * dir_vec.X();
       double y_closest = sp_positions[0].Y() + t * dir_vec.Y();
       double z_closest = sp_positions[0].Z() + t * dir_vec.Z();
@@ -781,7 +781,7 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
         for (int i = 0; i < nPoints; i++) {
           // closest approach of the track to the point
           double t         = ((sp_positions[i].X() - vertex.X()) * sx + (sp_positions[i].Y() - vertex.Y()) * sy +
-                      (sp_positions[i].Z() - z) * sz);
+                              (sp_positions[i].Z() - z) * sz);
           double x_closest = vertex.X() + t * sx;
           double y_closest = vertex.Y() + t * sy;
           double z_closest = z + t * sz;

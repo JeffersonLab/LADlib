@@ -1,16 +1,16 @@
 #include "THcLADGEM.h"
-#include <sstream>
 #include "THaApparatus.h"
 #include "THaCutList.h"
 #include "THaEvData.h"
 #include "THaGlobals.h"
+#include "THaRunBase.h"
 #include "THaTrack.h"
 #include "THcGlobals.h"
 #include "THcHallCSpectrometer.h"
 #include "THcParmList.h"
 #include "VarDef.h"
 #include "VarType.h"
-#include "THaRunBase.h"
+#include <sstream>
 
 using namespace std;
 
@@ -113,8 +113,8 @@ THaAnalysisObject::EStatus THcLADGEM::Init(const TDatime &date) {
 }
 
 //____________________________________________________________________
-Int_t THcLADGEM::Begin( THaRunBase* run ) {
-  for( auto& module: fModules ) {
+Int_t THcLADGEM::Begin(THaRunBase *run) {
+  for (auto &module : fModules) {
     module->Begin(run);
   }
   return 0;
@@ -127,7 +127,8 @@ Int_t THcLADGEM::DefineVariables(EMode mode) {
   fIsSetup = (mode == kDefine);
 
   // Cluster variables
-  RVarDef vars_clus[] = {{"clust.layer", "GEM Layer", "fClusOutData.layer"},
+  RVarDef vars_clus[] = {
+      {"clust.layer", "GEM Layer", "fClusOutData.layer"},
       {"clust.module", "GEM Module ID", "fClusOutData.imodule"},
       {"clust.axis", "U/V axis", "fClusOutData.axis"},
       {"clust.mpd", "MPD ID", "fClusOutData.mpdid"},
@@ -159,7 +160,8 @@ Int_t THcLADGEM::DefineVariables(EMode mode) {
                         {0}};
   DefineVarsFromList(vars_hit, mode);
 
-  RVarDef vars_sp[] = {{"sp.nhits", "Number of hits in GEM layer 0", "nhits"},
+  RVarDef vars_sp[] = {
+      {"sp.nhits", "Number of hits in GEM layer 0", "nhits"},
       {"sp.posX", "X position of GEM hit in layer 0", "fPosX"},
       {"sp.posY", "Y position of GEM hit in layer 0", "fPosY"},
       {"sp.posZ", "Z position of GEM hit in layer 0", "fPosZ"},
@@ -174,7 +176,8 @@ Int_t THcLADGEM::DefineVariables(EMode mode) {
       {"sp.corrcoeff", "Correlation Coefficient of GEM hit in layer 0", "fCorrCoeff"},
       {"sp.corrcoeff_deconv", "Deconvoluted Correlation Coefficient of GEM hit in layer 0", "fCorrCoeff_Deconv"},
       {"sp.corrcoeff_strip", "Strip Correlation Coefficient of GEM hit in layer 0", "fCorrCoeff_Strip"},
-                       {"sp.corrcoeff_strip_deconv", "Strip Deconvoluted Correlation Coefficient of GEM hit in layer 0", "fCorrCoeff_Strip_Deconv"},
+      {"sp.corrcoeff_strip_deconv", "Strip Deconvoluted Correlation Coefficient of GEM hit in layer 0",
+       "fCorrCoeff_Strip_Deconv"},
       {"sp.spID", "SP ID of GEM hit in layer 0", "fSPID"},
       {"sp.layer", "2D hit layer", "fLayer"},
       {0}};
@@ -203,8 +206,7 @@ Int_t THcLADGEM::DefineVariables(EMode mode) {
   // track variables only available when there are at least two layers
   if (fNLayers > 1) {
     // Track/Space point variables
-    RVarDef vars_trk[] = {
-        {"trk.ntracks", "Number of GEM track candidates", "fNTracks"},
+    RVarDef vars_trk[] = {{"trk.ntracks", "Number of GEM track candidates", "fNTracks"},
                           {"trk.id", "GEM Track ID", "fGEMTracks.THcLADGEMTrack.GetTrackID()"},
                           {"trk.spID_0", "Space Point ID for Layer 0 ", "fGEMTracks.THcLADGEMTrack.GetSpID_0()"},
                           {"trk.spID_1", "Space Point ID for Layer 1 ", "fGEMTracks.THcLADGEMTrack.GetSpID_1()"},
@@ -259,10 +261,10 @@ Int_t THcLADGEM::ReadDatabase(const TDatime &date) {
   prefix[1] = '\0';
 
   // initial values
-  fD0Cut       = 100.0; // DCA cut in cm
-  fPedFilename = "";
-  fCMFilename  = "";
-  fPedestalMode = 0;
+  fD0Cut           = 100.0; // DCA cut in cm
+  fPedFilename     = "";
+  fCMFilename      = "";
+  fPedestalMode    = 0;
   DBRequest list[] = {{"gem_num_modules", &fNModules, kInt}, // should be defined in DB file
                       {"gem_num_layers", &fNLayers, kInt},
                       {"gem_pedfile", &fPedFilename, kString, 0, 1},
@@ -366,7 +368,9 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
         fClusOutData.mpos.push_back(cluster.GetPosMax());
         fClusOutData.maxsamp.push_back(cluster.GetSampMax());
         fClusOutData.maxadc.push_back(cluster.GetADCMax());
-        fClusOutData.apvGain.push_back(module->GetAPVGain(cluster.GetStripMax()/128, cluster.GetAxis()));//FIXME: Assumes 128 strips per APV, should get from module
+        fClusOutData.apvGain.push_back(
+            module->GetAPVGain(cluster.GetStripMax() / 128,
+                               cluster.GetAxis())); // FIXME: Assumes 128 strips per APV, should get from module
         fNClusters++;
       }
     }
@@ -396,9 +400,9 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
   fSPID.reserve(nhits);
   fLayer.reserve(nhits);
   fCorrCoeff.reserve(nhits);
-  fCorrCoeff_Deconv .reserve(nhits);
-  fCorrCoeff_Strip .reserve(nhits);
-  fCorrCoeff_Strip_Deconv .reserve(nhits);
+  fCorrCoeff_Deconv.reserve(nhits);
+  fCorrCoeff_Strip.reserve(nhits);
+  fCorrCoeff_Strip_Deconv.reserve(nhits);
 
   for (int layer = 0; layer < fNLayers; ++layer) {
     for (const auto &hit : f2DHits[layer]) {
@@ -535,7 +539,7 @@ void THcLADGEM::RotateToLab(Double_t angle, TVector3 &vect) {
 }
 
 //____________________________________________________________
-GEM2DHits* THcLADGEM::Add2DHits(Int_t ilayer, Double_t x, Double_t y, Double_t z, Double_t t, Double_t dt, Double_t tc,
+GEM2DHits *THcLADGEM::Add2DHits(Int_t ilayer, Double_t x, Double_t y, Double_t z, Double_t t, Double_t dt, Double_t tc,
                                 Bool_t goodhit, Double_t adc, Double_t adcasy, Int_t clust_id1, Int_t clust_id2,
                                 Int_t sp_index) {
   // FIXME:Add flag for filtering good hits?
@@ -695,55 +699,52 @@ void THcLADGEM::LoadCM() {
   } // module loop
 }
 
-Int_t THcLADGEM::End(THaRunBase* r) {
+Int_t THcLADGEM::End(THaRunBase *r) {
   UInt_t runnum = r->GetNumber();
   std::cout << "THcLADGEM::End() fPedestalMode: " << fPedestalMode << std::endl;
-  if( fPedestalMode ){
+  if (fPedestalMode) {
     TString fname_dbped, fname_daqped, fname_dbcm, fname_daqcm;
-    
 
     TString specname = GetApparatus()->GetName();
-    TString detname = GetName();
+    TString detname  = GetName();
 
-    fname_dbped.Form( "db_ped_%s_%s_run%d.dat", specname.Data(), detname.Data(), runnum );
-    fname_dbcm.Form( "db_cmr_%s_%s_run%d.dat", specname.Data(), detname.Data(), runnum );
-    fname_daqped.Form( "daq_ped_%s_%s_run%d.dat", specname.Data(), detname.Data(), runnum );
-    fname_daqcm.Form( "daq_cmr_%s_%s_run%d.dat", specname.Data(), detname.Data(), runnum );
-    std::cout<<"\n\n\n"<<specname<<" "<<detname<<"\n\n\n";
+    fname_dbped.Form("db_ped_%s_%s_run%d.dat", specname.Data(), detname.Data(), runnum);
+    fname_dbcm.Form("db_cmr_%s_%s_run%d.dat", specname.Data(), detname.Data(), runnum);
+    fname_daqped.Form("daq_ped_%s_%s_run%d.dat", specname.Data(), detname.Data(), runnum);
+    fname_daqcm.Form("daq_cmr_%s_%s_run%d.dat", specname.Data(), detname.Data(), runnum);
+    std::cout << "\n\n\n" << specname << " " << detname << "\n\n\n";
 
-    fCMfile_dbase.open( fname_dbcm.Data() );
-    fpedfile_daq.open( fname_daqped.Data() );
-    fCMfile_daq.open( fname_daqcm.Data() );
-    
+    fCMfile_dbase.open(fname_dbcm.Data());
+    fpedfile_daq.open(fname_daqped.Data());
+    fCMfile_daq.open(fname_daqcm.Data());
 
     TString sdate = r->GetDate().AsString();
-    sdate.Prepend( "#" );
+    sdate.Prepend("#");
 
     TString message;
 
-    message.Form( "# Copy file into sbs-onl@sbsvtp#:~/cfg/pedestals for online pedestal subtraction" );
+    message.Form("# Copy file into sbs-onl@sbsvtp#:~/cfg/pedestals for online pedestal subtraction");
     fCMfile_daq << sdate << std::endl;
     fCMfile_daq << message << std::endl;
-    fCMfile_daq << "# format = crate, slot, mpd, adc_ch, CM min, CM max"
-    		  << std::endl;
+    fCMfile_daq << "# format = crate, slot, mpd, adc_ch, CM min, CM max" << std::endl;
 
-    message.Form( "# Copy this file into $DB_DIR/gemped to use these pedestals for analysis");
+    message.Form("# Copy this file into $DB_DIR/gemped to use these pedestals for analysis");
     fCMfile_dbase << sdate << std::endl;
     fCMfile_dbase << message << std::endl;
-    fCMfile_dbase << "# format = crate, slot, mpd, adc_ch, CM mean, CM RMS"
-		  << std::endl;
+    fCMfile_dbase << "# format = crate, slot, mpd, adc_ch, CM mean, CM RMS" << std::endl;
 
-    message.Form( "# Copy file into sbs-onl@sbsvtp#:~/cfg/pedestals for online pedestal subtraction" );
+    message.Form("# Copy file into sbs-onl@sbsvtp#:~/cfg/pedestals for online pedestal subtraction");
 
     fpedfile_daq << sdate << std::endl;
-    fpedfile_daq <<  message << std::endl;
+    fpedfile_daq << message << std::endl;
     fpedfile_daq << "# format = APV        crate       slot       mpd_id       adc_ch followed by " << std::endl
                  << "# APV channel number      pedestal mean      pedestal rms " << std::endl;
-
   }
 
   for (auto &module : fModules) {
-    if( fPedestalMode ) { module->PrintPedestals(fCMfile_dbase, fpedfile_daq, fCMfile_daq); }
+    if (fPedestalMode) {
+      module->PrintPedestals(fCMfile_dbase, fpedfile_daq, fCMfile_daq);
+    }
     module->End(r);
   }
   return 0;

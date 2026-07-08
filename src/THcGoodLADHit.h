@@ -8,9 +8,9 @@ public:
   THcGoodLADHit() {
     for (int i = 0; i < 2; ++i) {
       plane[i] = paddle[i] = -1;
-      hit_tof[i] = hit_tof_rfcorr[i] = hit_time[i] = hit_theta[i] = hit_phi[i] = hit_edep[i] = hit_edep_mev[i] = hit_edep_amp[i] =
-          hit_edep_amp_mev[i] = hit_yPos[i] = hit_alpha[i] = hit_beta[i] = 1e30;
-      is_proton[i]                                 = false;
+      hit_tof[i] = hit_tof_rfcorr[i] = hit_time[i] = hit_theta[i] = hit_phi[i] = hit_edep[i] = hit_edep_mev[i] =
+          hit_edep_amp[i] = hit_edep_amp_mev[i] = hit_yPos[i] = hit_alpha[i] = hit_beta[i] = 1e30;
+      is_proton[i]                                                                         = false;
     }
     trk_chiSqr = 1e30;
     track_id   = -1;
