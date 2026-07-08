@@ -241,7 +241,7 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     TVector3 v_hit1(track->GetX1(), track->GetY1(), track->GetZ1());
     TVector3 v_hit2(track->GetX2(), track->GetY2(), track->GetZ2());
 
-    if (fVertexModule->HasVertex()) {
+    if (fVertexModule && fVertexModule->HasVertex()) {
       vertex = fVertexModule->GetVertex();
       track->SetGoodD0(kTRUE);
     } else {
