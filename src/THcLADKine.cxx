@@ -187,11 +187,15 @@ Int_t THcLADKine::ReadDatabase(const TDatime &date) {
     fFixed_z = nullptr;
   }
 
+  // NB: LoadParmValues prepends the prefix ("l"), so these keys are read as
+  // "lz_cell_min", "ltheta_min", ... in the database (matching the other keys
+  // above). The previous "ladkin." names resolved to "lladkin.*" and never matched.
   DBRequest track_constraints[] = {
-      {"ladkin.z_cell_min", &fZCellMin, kDouble, 0, 1}, {"ladkin.z_cell_max", &fZCellMax, kDouble, 0, 1},
-      {"ladkin.theta_min", &fThetaMin, kDouble, 0, 1},  {"ladkin.theta_max", &fThetaMax, kDouble, 0, 1},
-      {"ladkin.phi_min", &fPhiMin, kDouble, 0, 1},      {"ladkin.phi_max", &fPhiMax, kDouble, 0, 1},
-      {"ladkin.chisq_cut", fchisq_cut, kDouble, 2, 1},  {0}};
+      {"z_cell_min", &fZCellMin, kDouble, 0, 1},   {"z_cell_max", &fZCellMax, kDouble, 0, 1},
+      {"theta_min", &fThetaMin, kDouble, 0, 1},    {"theta_max", &fThetaMax, kDouble, 0, 1},
+      {"phi_min", &fPhiMin, kDouble, 0, 1},        {"phi_max", &fPhiMax, kDouble, 0, 1},
+      {"chisq_cut", fchisq_cut, kDouble, 2, 1},    {"sigma_gem", &fSigma_GEM, kDouble, 0, 1},
+      {"sigma_hodo", &fSigma_Hodo, kDouble, 0, 1}, {0}};
   gHcParms->LoadParmValues((DBRequest *)&track_constraints, prefix);
 
   if (fZCellMin > fZCellMax) {
