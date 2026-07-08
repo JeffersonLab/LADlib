@@ -268,8 +268,8 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
                                 {kBig, kBig, kBig},
                                 {kBig, kBig, kBig}}; // no hodo hits, 1 hodo hit, 2 hodo hits+ (F-only, B-only, F&B)
     bool usedHodoHit[3][3]   = {{kFALSE, kFALSE, kFALSE}, {kFALSE, kFALSE, kFALSE}, {kFALSE, kFALSE, kFALSE}};
-    Double_t best_gemdir[3][3][3];
-    int bestHodoHitIndex[3][3] = {{-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}};
+    Double_t best_gemdir[3][3][3] = {}; // zero-initialized so an unselected entry can never be read uninitialized
+    int bestHodoHitIndex[3][3]    = {{-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}};
     // fit GEM only first, if chisq is negative, skip the track and mark as bad
     Double_t dir[3];
     dir[0] = gemdir[0];
