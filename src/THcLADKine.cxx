@@ -789,7 +789,7 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
           double dy        = sp_positions[i].Y() - y_closest;
           double dz        = sp_positions[i].Z() - z_closest;
           double dist2     = dx * dx + dz * dz;
-          if (i > 2) {
+          if (i >= 2) {
             // Assume these are hodoscope hit, so no chisq penalty if the hit is within the width of the paddle
             double paddle_width = 22; // in cm, TODO: get actual paddle width from database
             if (dist2 < (paddle_width / 2.0) * (paddle_width / 2.0)) {
