@@ -13,6 +13,7 @@
 #include "TVector3.h"
 #include "VarDef.h"
 #include "VarType.h"
+#include <cmath>
 
 ClassImp(THcLADKine)
     //_____________________________________________________________________________
@@ -63,9 +64,8 @@ void THcLADKine::Clear(Option_t *opt) {
   THcPrimaryKine::Clear(opt);
   // fGoodLADHits->Delete();
   goodhit_n = 0;
-  for (Int_t i = 0; i < n_rf_offsets; i++) {
-    rf_offset[i] = 0.0;
-  }
+  // NB: rf_offset is the DB-loaded offset table (3*n_rf_offsets entries) and must
+  // NOT be zeroed per-event here -- doing so corrupted the run lookup.
   fTVertex        = kBig;
   fRFTime         = kBig;
   fTVertex_RFcorr = kBig;
@@ -625,30 +625,42 @@ void THcLADKine::CalculateTVertex() {
 
   fTVertex = fPtime - PathLengthCorr;
 
-  THaVar *varptr;
-  varptr = gHcParms->Find("gen_run_number");
-  Int_t *runnum;
+  // Look up the run number; default to a safe value (0 -> first offset row) if unavailable
+  Int_t run_number = 0;
+  THaVar *varptr   = gHcParms->Find("gen_run_number");
   if (varptr) {
-    runnum = (Int_t *)varptr->GetValuePointer(); // Assume correct type
+    Int_t *runnum = (Int_t *)varptr->GetValuePointer(); // Assume correct type
+    if (runnum)
+      run_number = *runnum;
   }
-  int fRFTimeIndex = -1;
-  int run_idx      = 0;
-  while (fRFTimeIndex < 0) {
-    if (run_idx >= 3 * n_rf_offsets || rf_offset[run_idx] > *runnum) {
-      fRFTimeIndex = run_idx - 3; // Go back 1 step (3 indices) to get the correct RF offset for the run
-      break;
-    }
-    run_idx += 3;
-  }
-  int fRFSpecIndex = (aparatus_prefix[0] == 'p') ? 0 : 1;
-  fRFTimeIndex += (1 + fRFSpecIndex);
-  // (aparatus_prefix[0] == 'p') ? 0 : 1;
 
-  fRFTime    = fTrigDet->Get_RF_TrigTime(fRFSpecIndex);
-  double tmp = fmod(fTVertex - fRFTime + rf_offset[fRFTimeIndex], rf_period);
-  if (tmp > 2)
-    tmp -= rf_period;
-  fTVertex_RFcorr = fTVertex - tmp;
+  int fRFSpecIndex = (aparatus_prefix[0] == 'p') ? 0 : 1;
+  fRFTime          = fTrigDet->Get_RF_TrigTime(fRFSpecIndex);
+
+  // The RF offset table is stored as n_rf_offsets triplets: {run_start, SHMS, HMS}
+  if (n_rf_offsets > 0) {
+    int fRFTimeIndex = -1;
+    int run_idx      = 0;
+    while (fRFTimeIndex < 0) {
+      if (run_idx >= 3 * n_rf_offsets || rf_offset[run_idx] > run_number) {
+        fRFTimeIndex = run_idx - 3; // Go back 1 step (3 indices) to the applicable row
+        break;
+      }
+      run_idx += 3;
+    }
+    if (fRFTimeIndex < 0)
+      fRFTimeIndex = 0; // run precedes the first offset row -> use the first row
+    fRFTimeIndex += (1 + fRFSpecIndex);
+    if (fRFTimeIndex >= 3 * n_rf_offsets)
+      fRFTimeIndex = 3 * n_rf_offsets - 1; // safety clamp within bounds
+
+    // std::remainder maps the value into [-rf_period/2, +rf_period/2] directly.
+    // (fmod would instead return a full-period range with the sign of the dividend.)
+    double tmp      = std::remainder(fTVertex - fRFTime + rf_offset[fRFTimeIndex], rf_period);
+    fTVertex_RFcorr = fTVertex - tmp;
+  } else {
+    fTVertex_RFcorr = fTVertex; // no RF offsets available
+  }
 
   // cout << "Offset" << rf_offset[fRFTimeIndex] << " Offset Index " << fRFTimeIndex << " RF Time " << fRFTime
   //      << " TVertex before RF corr " << fTVertex << " TVertex after RF corr " << fTVertex_RFcorr << endl;
