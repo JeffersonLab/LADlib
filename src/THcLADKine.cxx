@@ -71,6 +71,7 @@ void THcLADKine::Clear(Option_t *opt) {
   fTVertex        = kBig;
   fRFTime         = kBig;
   fTVertex_RFcorr = kBig;
+  vertex.SetXYZ(0, 0, 0);
 }
 //_____________________________________________________________________________
 THaAnalysisObject::EStatus THcLADKine::Init(const TDatime &run_time) {
@@ -485,6 +486,14 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     }
     track->SetIsGoodTrack(isGoodTrack[iTrack]);
   }
+
+  // Refresh the event vertex for the hit ToF RF correction. The per-track loops
+  // above leave the vertex member in a track-dependent state; use the current
+  // event's reaction-point vertex here instead.
+  if (fVertexModule && fVertexModule->HasVertex())
+    vertex = fVertexModule->GetVertex();
+  else
+    vertex.SetXYZ(0, 0, 0);
 
   //////////////////////////////////////////////////////////////////////////////
   // Calculate ToF and RF-corrected ToF for good LAD hits
