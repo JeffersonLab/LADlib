@@ -14,6 +14,9 @@ public:
     }
     trk_chiSqr = 1e30;
     track_id   = -1;
+    // no-vertex tracking associations
+    trk_chiSqr_noTrackVertex = 1e30;
+    track_id_noTrackVertex   = -1;
   };
   virtual ~THcGoodLADHit() = default;
 
@@ -33,6 +36,8 @@ public:
   }
   void SetTrackID(Int_t value) { track_id = value; }
   void SetTrkChiSqr(Double_t value) { trk_chiSqr = value; }
+  void SetTrackID_noTrackVertex(Int_t value) { track_id_noTrackVertex = value; }
+  void SetTrkChiSqr_noTrackVertex(Double_t value) { trk_chiSqr_noTrackVertex = value; }
   void SetIsProton(Int_t hit, Bool_t value) {
     CheckHitIndex(hit);
     is_proton[hit] = value;
@@ -137,11 +142,13 @@ public:
   Int_t GetPaddleHit1() const { return paddle[1]; }
 
   Int_t GetTrackID() const { return track_id; }
+  Int_t GetTrackID_noTrackVertex() const { return track_id_noTrackVertex; }
 
   Double_t GetBetaHit0() const { return hit_beta[0]; }
   Double_t GetBetaHit1() const { return hit_beta[1]; }
 
   Double_t GetTrkChiSqr() const { return trk_chiSqr; }
+  Double_t GetTrkChiSqr_noTrackVertex() const { return trk_chiSqr_noTrackVertex; }
 
   Double_t GetIsProtonHit0() const { return is_proton[0]; }
   Double_t GetIsProtonHit1() const { return is_proton[1]; }
@@ -184,6 +191,8 @@ protected:
   Int_t paddle[2];
   Int_t track_id;
   Double_t trk_chiSqr;
+  Int_t track_id_noTrackVertex;      // GEM track ID from the no-vertex fit
+  Double_t trk_chiSqr_noTrackVertex; // chi-square of the associated no-vertex track
   Double_t is_proton[2];
   Double_t hit_time[2];
   Double_t hit_beta[2];

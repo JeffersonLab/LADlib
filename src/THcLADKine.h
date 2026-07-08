@@ -93,6 +93,15 @@ protected:
   Double_t CalculateTOFRFcorr(Double_t t_raw);
   Double_t FitTrack(TVector3 vertex, std::vector<TVector3> sp_positions, std::vector<double> sp_resolutions,
                     double dir[3]);
+  // No-vertex variant: fit a free 3D line (4 DOF) through the GEM + hodoscope
+  // space points, WITHOUT constraining the track to originate at the target
+  // vertex. The line is anchored at a fixed x-plane x = sp_positions[0].X()
+  // (= GEM1 x), which is single-valued over the LAD acceptance. On input
+  // dir[0]=theta seed, dir[1]=phi seed and anchor[0]=y0 seed, anchor[1]=z0 seed
+  // (the line's y,z where x = x_ref). On output the fitted values are written
+  // back. Returns the chi-square, or a negative code on failure.
+  Double_t FitTrack_noTrackVertex(std::vector<TVector3> sp_positions, std::vector<double> sp_resolutions, double dir[3],
+                                  double anchor[2]);
   void MakeProtonCut(TClonesArray *hits);
 
   ClassDef(THcLADKine, 0)

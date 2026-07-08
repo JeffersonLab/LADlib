@@ -137,6 +137,36 @@ public:
   bool IsGoodTrack() const { return fIsGoodTrack; }
   void SetIsGoodTrack(bool isGood) { fIsGoodTrack = isGood; }
 
+  // ---- no-vertex tracking (fit does NOT use the target vertex) ----
+  void SetChisq_noTrackVertex(Double_t c) { chisq_noTrackVertex = c; }
+  Double_t GetChisq_noTrackVertex() const { return chisq_noTrackVertex; }
+  void SetAngles_noTrackVertex(Double_t theta, Double_t phi) {
+    ftheta_noTrackVertex = theta;
+    fphi_noTrackVertex   = phi;
+  }
+  void GetAngles_noTrackVertex(Double_t &theta, Double_t &phi) const {
+    theta = ftheta_noTrackVertex;
+    phi   = fphi_noTrackVertex;
+  }
+  Double_t GetTheta_noTrackVertex() const { return ftheta_noTrackVertex; }
+  Double_t GetPhi_noTrackVertex() const { return fphi_noTrackVertex; }
+  void SetProjVertex_noTrackVertex(Double_t vx, Double_t vy, Double_t vz) {
+    fProjVx_noTrackVertex = vx;
+    fProjVy_noTrackVertex = vy;
+    fProjVz_noTrackVertex = vz;
+  }
+  Double_t GetProjVx_noTrackVertex() const { return fProjVx_noTrackVertex; }
+  Double_t GetProjVy_noTrackVertex() const { return fProjVy_noTrackVertex; }
+  Double_t GetProjVz_noTrackVertex() const { return fProjVz_noTrackVertex; }
+  void SetD0_noTrackVertex(Double_t d0) { fD0_noTrackVertex = d0; }
+  Double_t GetD0_noTrackVertex() const { return fD0_noTrackVertex; }
+  void SetHasHodoHit_noTrackVertex(short hasHodoHit) { fHasHodoHit_noTrackVertex = hasHodoHit; }
+  short GetHasHodoHit_noTrackVertex() const { return fHasHodoHit_noTrackVertex; }
+  void SetBestHodoHit_noTrackVertex(THcGoodLADHit *hit) { fBestHodoHit_noTrackVertex = hit; }
+  THcGoodLADHit *GetBestHodoHit_noTrackVertex() const { return fBestHodoHit_noTrackVertex; }
+  void SetIsGoodTrack_noTrackVertex(bool isGood) { fIsGoodTrack_noTrackVertex = isGood; }
+  bool IsGoodTrack_noTrackVertex() const { return fIsGoodTrack_noTrackVertex; }
+
   GEM2DHits GetSpacePoint(int isp) { return fSp[isp]; }
   virtual void AddSpacePoint(GEM2DHits sp);
   Int_t GetSpID_0() const { return fSp[0].spID; };
@@ -165,6 +195,18 @@ protected:
   bool fIsGoodTrack;
   GEM2DHits *fSp;
   THcGoodLADHit *fBestHodoHit; // pointer to the best hodoscope hit associated with this track, if any
+
+  // no-vertex tracking quantities (parallel to the vertex-constrained ones above)
+  Double_t chisq_noTrackVertex;
+  Double_t ftheta_noTrackVertex;
+  Double_t fphi_noTrackVertex;
+  Double_t fProjVx_noTrackVertex;
+  Double_t fProjVy_noTrackVertex;
+  Double_t fProjVz_noTrackVertex;
+  Double_t fD0_noTrackVertex;
+  short fHasHodoHit_noTrackVertex;
+  bool fIsGoodTrack_noTrackVertex;
+  THcGoodLADHit *fBestHodoHit_noTrackVertex;
 
 private:
   THcLADGEMTrack(const THcLADGEMTrack &);

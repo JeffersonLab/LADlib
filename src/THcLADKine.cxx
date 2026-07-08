@@ -487,6 +487,210 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     track->SetIsGoodTrack(isGoodTrack[iTrack]);
   }
 
+  //////////////////////////////////////////////////////////////////////////////
+  // No-vertex tracking
+  // Identical in spirit to the loop above, but the fit does NOT use the target
+  // vertex. The track is a free 3D line through GEM1, GEM2 and the hodoscope
+  // hit(s). Because two points (GEM1, GEM2) already define a line exactly, a
+  // no-vertex fit is only meaningful when there is at least one hodoscope hit,
+  // so tracks with no hodo hit get no valid no-vertex result.
+  for (Int_t iTrack = 0; iTrack < ntracks; iTrack++) {
+    THcLADGEMTrack *track = static_cast<THcLADGEMTrack *>(fGEMTracks->At(iTrack));
+    if (track == nullptr)
+      continue;
+
+    // Default (invalid) values: overwritten below only if a valid fit is found
+    track->SetChisq_noTrackVertex(-kBig);
+    track->SetAngles_noTrackVertex(-kBig, -kBig);
+    track->SetProjVertex_noTrackVertex(-kBig, -kBig, -kBig);
+    track->SetD0_noTrackVertex(-kBig);
+    track->SetHasHodoHit_noTrackVertex(0);
+    track->SetBestHodoHit_noTrackVertex(nullptr);
+    track->SetIsGoodTrack_noTrackVertex(kFALSE);
+
+    TVector3 v_hit1(track->GetX1(), track->GetY1(), track->GetZ1());
+    TVector3 v_hit2(track->GetX2(), track->GetY2(), track->GetZ2());
+
+    // Direction seed from the GEM space points
+    Double_t gem_theta = TMath::ACos((v_hit2.Z() - v_hit1.Z()) / (v_hit2 - v_hit1).Mag());
+    Double_t gem_phi   = TMath::ATan2((v_hit2.Y() - v_hit1.Y()), (v_hit2.X() - v_hit1.X()));
+
+    // Best chi-square per hypothesis, indexed [category][subtype]:
+    //   category 1 -> a single hodoscope plane; category 2 -> two hodoscope planes
+    //   for category 2: subtype 0 = Front&Back, 1 = Front-only, 2 = Back-only
+    Double_t bestchisq[3][3] = {{kBig, kBig, kBig}, {kBig, kBig, kBig}, {kBig, kBig, kBig}};
+    bool usedHodoHit[3][3]   = {{kFALSE, kFALSE, kFALSE}, {kFALSE, kFALSE, kFALSE}, {kFALSE, kFALSE, kFALSE}};
+    Double_t best_dir[3][3][2];    // theta, phi
+    Double_t best_anchor[3][3][2]; // y0, z0 (line y,z at x = GEM1 x)
+    int bestHodoHitIndex[3][3] = {{-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}};
+
+    // Loop over hodoscope hits to find the best match to the GEM track (no vertex)
+    for (int iHodoHit = 0; iHodoHit < nHits; iHodoHit++) {
+      THcGoodLADHit *goodHit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(iHodoHit));
+      if (goodHit == nullptr)
+        continue;
+      int num_hodo_hits = 0;
+      if (goodHit->GetPlaneHit0() >= 0 && goodHit->GetPlaneHit0() < 999)
+        num_hodo_hits++;
+      if (goodHit->GetPlaneHit1() >= 0 && goodHit->GetPlaneHit1() < 999)
+        num_hodo_hits++;
+      if (num_hodo_hits == 0)
+        continue; // no-vertex tracking requires a hodoscope hit
+
+      if (num_hodo_hits == 1) {
+        TVector3 hodo_hit_pos;
+        if (goodHit->GetPlaneHit0() >= 0 && goodHit->GetPlaneHit0() < 999) {
+          hodo_hit_pos = fHodoscope->GetHitPositionLab(goodHit->GetPlaneHit0(), goodHit->GetPaddleHit0(),
+                                                       goodHit->GetHitYPosHit0());
+        } else {
+          hodo_hit_pos = fHodoscope->GetHitPositionLab(goodHit->GetPlaneHit1(), goodHit->GetPaddleHit1(),
+                                                       goodHit->GetHitYPosHit1());
+        }
+        std::vector<TVector3> v_hits = {v_hit1, v_hit2, hodo_hit_pos};
+        std::vector<Double_t> v_res  = {fSigma_GEM, fSigma_GEM, fSigma_Hodo};
+        Double_t dir[3]              = {gem_theta, gem_phi, 0.0};
+        Double_t anchor[2]           = {v_hit1.Y(), v_hit1.Z()};
+        Double_t chisq               = FitTrack_noTrackVertex(v_hits, v_res, dir, anchor);
+        if (chisq >= 0 && chisq < bestchisq[1][0]) {
+          bestchisq[1][0]        = chisq;
+          best_dir[1][0][0]      = dir[0];
+          best_dir[1][0][1]      = dir[1];
+          best_anchor[1][0][0]   = anchor[0];
+          best_anchor[1][0][1]   = anchor[1];
+          bestHodoHitIndex[1][0] = iHodoHit;
+          usedHodoHit[1][0]      = kTRUE;
+        }
+      } else { // num_hodo_hits == 2
+        TVector3 hodo_hit_posF =
+            fHodoscope->GetHitPositionLab(goodHit->GetPlaneHit0(), goodHit->GetPaddleHit0(), goodHit->GetHitYPosHit0());
+        TVector3 hodo_hit_posB =
+            fHodoscope->GetHitPositionLab(goodHit->GetPlaneHit1(), goodHit->GetPaddleHit1(), goodHit->GetHitYPosHit1());
+
+        // Front & Back -> [2][0]
+        {
+          std::vector<TVector3> v_hits = {v_hit1, v_hit2, hodo_hit_posF, hodo_hit_posB};
+          std::vector<Double_t> v_res  = {fSigma_GEM, fSigma_GEM, fSigma_Hodo, fSigma_Hodo};
+          Double_t dir[3]              = {gem_theta, gem_phi, 0.0};
+          Double_t anchor[2]           = {v_hit1.Y(), v_hit1.Z()};
+          Double_t chisq               = FitTrack_noTrackVertex(v_hits, v_res, dir, anchor);
+          if (chisq >= 0 && chisq < bestchisq[2][0]) {
+            bestchisq[2][0]        = chisq;
+            best_dir[2][0][0]      = dir[0];
+            best_dir[2][0][1]      = dir[1];
+            best_anchor[2][0][0]   = anchor[0];
+            best_anchor[2][0][1]   = anchor[1];
+            bestHodoHitIndex[2][0] = iHodoHit;
+            usedHodoHit[2][0]      = kTRUE;
+          }
+        }
+        // Front only -> [2][1]
+        {
+          std::vector<TVector3> v_hits = {v_hit1, v_hit2, hodo_hit_posF};
+          std::vector<Double_t> v_res  = {fSigma_GEM, fSigma_GEM, fSigma_Hodo};
+          Double_t dir[3]              = {gem_theta, gem_phi, 0.0};
+          Double_t anchor[2]           = {v_hit1.Y(), v_hit1.Z()};
+          Double_t chisq               = FitTrack_noTrackVertex(v_hits, v_res, dir, anchor);
+          if (chisq >= 0 && chisq < bestchisq[2][1]) {
+            bestchisq[2][1]        = chisq;
+            best_dir[2][1][0]      = dir[0];
+            best_dir[2][1][1]      = dir[1];
+            best_anchor[2][1][0]   = anchor[0];
+            best_anchor[2][1][1]   = anchor[1];
+            bestHodoHitIndex[2][1] = iHodoHit;
+            usedHodoHit[2][1]      = kTRUE;
+          }
+        }
+        // Back only -> [2][2]
+        {
+          std::vector<TVector3> v_hits = {v_hit1, v_hit2, hodo_hit_posB};
+          std::vector<Double_t> v_res  = {fSigma_GEM, fSigma_GEM, fSigma_Hodo};
+          Double_t dir[3]              = {gem_theta, gem_phi, 0.0};
+          Double_t anchor[2]           = {v_hit1.Y(), v_hit1.Z()};
+          Double_t chisq               = FitTrack_noTrackVertex(v_hits, v_res, dir, anchor);
+          if (chisq >= 0 && chisq < bestchisq[2][2]) {
+            bestchisq[2][2]        = chisq;
+            best_dir[2][2][0]      = dir[0];
+            best_dir[2][2][1]      = dir[1];
+            best_anchor[2][2][0]   = anchor[0];
+            best_anchor[2][2][1]   = anchor[1];
+            bestHodoHitIndex[2][2] = iHodoHit;
+            usedHodoHit[2][2]      = kTRUE;
+          }
+        }
+      }
+    }
+
+    // Pick the best hypothesis. First find the best single-plane fit, then
+    // prefer the two-plane (F&B) fit if it is no worse than the best single
+    // fit by more than fchisq_cut[0].
+    int hit_index      = -1;
+    Double_t bc_single = kBig;
+    if (usedHodoHit[1][0] && bestchisq[1][0] < bc_single) {
+      bc_single = bestchisq[1][0];
+      hit_index = 1 * 3 + 0;
+    }
+    if (usedHodoHit[2][1] && bestchisq[2][1] < bc_single) {
+      bc_single = bestchisq[2][1];
+      hit_index = 2 * 3 + 1;
+    }
+    if (usedHodoHit[2][2] && bestchisq[2][2] < bc_single) {
+      bc_single = bestchisq[2][2];
+      hit_index = 2 * 3 + 2;
+    }
+    if (usedHodoHit[2][0] && (hit_index < 0 || (bestchisq[2][0] - bc_single) <= fchisq_cut[0])) {
+      hit_index = 2 * 3 + 0;
+    }
+    if (hit_index < 0)
+      continue; // no valid no-vertex hypothesis for this track -> leave invalid defaults
+
+    int cat        = hit_index / 3;
+    int sub        = hit_index % 3;
+    Double_t theta = best_dir[cat][sub][0];
+    Double_t phi   = best_dir[cat][sub][1];
+    Double_t y0    = best_anchor[cat][sub][0];
+    Double_t z0    = best_anchor[cat][sub][1];
+    Double_t x_ref = v_hit1.X(); // anchor plane used by FitTrack_noTrackVertex
+
+    Double_t sx = TMath::Sin(theta) * TMath::Cos(phi);
+    Double_t sy = TMath::Sin(theta) * TMath::Sin(phi);
+    Double_t sz = TMath::Cos(theta);
+
+    track->SetChisq_noTrackVertex(bestchisq[cat][sub]);
+    track->SetAngles_noTrackVertex(theta, phi);
+
+    // Reproject the fitted line back toward the beamline (target region).
+    // Projected vertex = point where the track crosses the x = 0 plane.
+    // D0 = distance of closest approach of the track to the beam (z) axis.
+    if (TMath::Abs(sx) > 1e-9) {
+      Double_t t0    = -x_ref / sx;
+      Double_t projY = y0 + t0 * sy;
+      Double_t projZ = z0 + t0 * sz;
+      Double_t d0    = TMath::Abs(x_ref * sy - y0 * sx) / TMath::Sqrt(sx * sx + sy * sy);
+      track->SetProjVertex_noTrackVertex(0.0, projY, projZ);
+      track->SetD0_noTrackVertex(d0);
+    }
+
+    int nplanes = (cat == 2 && sub == 0) ? 2 : 1;
+    track->SetHasHodoHit_noTrackVertex(nplanes);
+    THcGoodLADHit *besthit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex[cat][sub]));
+    track->SetBestHodoHit_noTrackVertex(besthit);
+    if (besthit) {
+      // per-hit association from the no-vertex fit (parallel to the vertex-based track_id / trk_chiSqr)
+      besthit->SetTrackID_noTrackVertex(track->GetTrackID());
+      besthit->SetTrkChiSqr_noTrackVertex(track->GetChisq_noTrackVertex());
+    }
+
+    bool good     = kTRUE;
+    Double_t d0nv = track->GetD0_noTrackVertex();
+    if (!(d0nv > 0 && d0nv < fD0Cut_noVertex))
+      good = kFALSE;
+    if (bestchisq[cat][sub] < 0)
+      good = kFALSE;
+    if (track->GetdT() > fTrk_dtCut)
+      good = kFALSE;
+    track->SetIsGoodTrack_noTrackVertex(good);
+  }
+
   // Refresh the event vertex for the hit ToF RF correction. The per-track loops
   // above leave the vertex member in a track-dependent state; use the current
   // event's reaction-point vertex here instead.
@@ -855,5 +1059,120 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
   // minimizer is reused across calls; do not delete here
 
   // return the chi2 of the fit
+  return chi2;
+}
+//_____________________________________________________________________________
+
+Double_t THcLADKine::FitTrack_noTrackVertex(std::vector<TVector3> sp_positions, std::vector<double> sp_resolutions,
+                                            double dir[3], double anchor[2]) {
+  // Free 3D-line fit that does NOT use the target vertex.
+  //
+  // A 3D line has 4 degrees of freedom. Here it is parametrized by its
+  // direction (theta, phi) and by the (y, z) coordinates where it crosses a
+  // fixed reference plane x = x_ref = sp_positions[0].X() (the GEM1 x). Over the
+  // LAD acceptance the along-track x-component sx = sin(theta)cos(phi) is always
+  // positive (theta in [60,170] deg, phi in [-50,50] deg), so every candidate
+  // line crosses x = x_ref exactly once and the parametrization is non-singular.
+  //
+  // All space points (GEM1, GEM2 and the hodoscope hit(s)) contribute weighted
+  // residuals; unlike the vertex-constrained FitTrack no point is forced exact.
+  if (dir == nullptr || anchor == nullptr || sp_positions.empty() || sp_resolutions.empty()) {
+    return -1; // Invalid input
+  }
+  int nPoints = sp_positions.size();
+  // Require GEM1, GEM2 + at least one hodoscope hit (3 points); up to GEM1,
+  // GEM2, front, back (4 points). With only the 2 GEM points the fit is
+  // degenerate (the line is exactly determined), so we reject it here.
+  if (nPoints < 3 || nPoints > 4) {
+    return -1;
+  }
+  if (nPoints != (int)sp_resolutions.size()) {
+    return -2; // Mismatch in number of points and resolutions
+  }
+  for (int i = 0; i < nPoints; i++) {
+    if (sp_resolutions[i] <= 0) {
+      return -3; // Invalid resolution value
+    }
+  }
+  if (dir[0] < 0 || dir[0] > TMath::Pi() || dir[1] < -TMath::Pi() || dir[1] > TMath::Pi()) {
+    return -4; // Invalid initial direction values
+  }
+
+  const double x_ref = sp_positions[0].X(); // anchor plane at GEM1 x
+
+  // Check that the GEM line (GEM1 -> GEM2) points near the hodoscope hits;
+  // if not, reject the track. Uses the full 3D distance (including y).
+  {
+    TVector3 dir_vec = (sp_positions[1] - sp_positions[0]).Unit();
+    for (int i = 2; i < nPoints; i++) {
+      double t         = (sp_positions[i] - sp_positions[0]).Dot(dir_vec);
+      TVector3 closest = sp_positions[0] + t * dir_vec;
+      double dist2     = (sp_positions[i] - closest).Mag2();
+      if (dist2 > (22 * 22)) { // more than 22 cm from the hodoscope hit
+        return -5;             // Track does not point to the hodoscope hit
+      }
+    }
+  }
+
+  double chi2 = -kBig;
+  if (!fMinimizer)
+    fMinimizer = ROOT::Math::Factory::CreateMinimizer("Minuit2", "Migrad");
+  fMinimizer->Clear(); // reset variables/state from the previous fit (reused across calls)
+  fMinimizer->SetMaxFunctionCalls(1000);
+  fMinimizer->SetTolerance(1e-6);
+  ROOT::Math::Minimizer *minimizer = fMinimizer;
+  ROOT::Math::Functor f(
+      [=](const double *params) {
+        double y0         = params[0];
+        double z0         = params[1];
+        double theta      = params[2]; // in radians
+        double phi        = params[3]; // in radians
+        double chi2_local = 0;
+        double sx         = TMath::Sin(theta) * TMath::Cos(phi);
+        double sy         = TMath::Sin(theta) * TMath::Sin(phi);
+        double sz         = TMath::Cos(theta);
+        for (int i = 0; i < nPoints; i++) {
+          // closest approach of the track to the point
+          double t =
+              ((sp_positions[i].X() - x_ref) * sx + (sp_positions[i].Y() - y0) * sy + (sp_positions[i].Z() - z0) * sz);
+          double x_closest = x_ref + t * sx;
+          double y_closest = y0 + t * sy;
+          double z_closest = z0 + t * sz;
+          double dx        = sp_positions[i].X() - x_closest;
+          double dy        = sp_positions[i].Y() - y_closest;
+          double dz        = sp_positions[i].Z() - z_closest;
+          double dist2     = dx * dx + dz * dz;
+          if (i >= 2) {
+            // Hodoscope hit: no chi-square penalty if within half the paddle width
+            double paddle_width = 22; // in cm, TODO: get actual paddle width from database
+            if (dist2 < (paddle_width / 2.0) * (paddle_width / 2.0)) {
+              dist2 = 0;
+            }
+          }
+          chi2_local += (dist2 + dy * dy) / (sp_resolutions[i] * sp_resolutions[i]);
+        }
+        return chi2_local;
+      },
+      4);
+  minimizer->SetFunction(f);
+
+  minimizer->SetVariable(0, "y0", anchor[0], 0.1);
+  minimizer->SetVariable(1, "z0", anchor[1], 0.1);
+  minimizer->SetLimitedVariable(2, "theta", dir[0], 0.1, fThetaMin,
+                                fThetaMax); // Limit theta to avoid unphysical solutions (tracks going backwards)
+  minimizer->SetLimitedVariable(3, "phi", dir[1], 0.1, fPhiMin,
+                                fPhiMax); // Limit phi as the GEMs are only on the left side of the target
+  minimizer->Minimize();
+  if (minimizer->Status() != 0) {
+    return -6; // Fit did not converge (minimizer is reused, do not delete)
+  }
+  const double *best_params = minimizer->X();
+  anchor[0]                 = best_params[0]; // y0
+  anchor[1]                 = best_params[1]; // z0
+  dir[0]                    = best_params[2]; // theta in radians
+  dir[1]                    = best_params[3]; // phi in radians
+  chi2                      = minimizer->MinValue();
+  // minimizer is reused across calls; do not delete here
+
   return chi2;
 }

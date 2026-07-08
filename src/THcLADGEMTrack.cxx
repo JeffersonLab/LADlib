@@ -12,6 +12,18 @@ THcLADGEMTrack::THcLADGEMTrack(Int_t nlayers) {
   chisq      = -999.;
   ftheta     = -999.;
   fphi       = -999.;
+
+  // no-vertex tracking quantities
+  chisq_noTrackVertex        = -999.;
+  ftheta_noTrackVertex       = -999.;
+  fphi_noTrackVertex         = -999.;
+  fProjVx_noTrackVertex      = -999.;
+  fProjVy_noTrackVertex      = -999.;
+  fProjVz_noTrackVertex      = -999.;
+  fD0_noTrackVertex          = -999.;
+  fHasHodoHit_noTrackVertex  = 0;
+  fIsGoodTrack_noTrackVertex = false;
+  fBestHodoHit_noTrackVertex = nullptr;
 }
 
 //_________________________________________________________
