@@ -463,12 +463,12 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     }
 
     if (track->GetGoodD0()) {
-      if (track->GetD0() > 0 && track->GetD0() < fD0Cut_wVertex) {
-        isGoodTrack[iTrack] = isGoodTrack[iTrack] && true;
+      if (!(track->GetD0() > 0 && track->GetD0() < fD0Cut_wVertex)) {
+        isGoodTrack[iTrack] = false; // reject tracks whose D0 is outside the allowed range
       }
     } else {
-      if (track->GetD0() > 0 && track->GetD0() < fD0Cut_noVertex) {
-        isGoodTrack[iTrack] = isGoodTrack[iTrack] && true;
+      if (!(track->GetD0() > 0 && track->GetD0() < fD0Cut_noVertex)) {
+        isGoodTrack[iTrack] = false;
       }
     }
     if (track->GetChisq() < 0) {
