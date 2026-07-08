@@ -20,7 +20,8 @@ ClassImp(THcLADKine)
     THcLADKine::THcLADKine(const char *name, const char *description, const char *spectro, const char *primary_kine,
                            const char *vertex_module)
     : THcPrimaryKine(name, description, spectro, primary_kine, 0.938), fSpecName(spectro), fGEM(nullptr),
-      fHodoscope(nullptr), fVertexModuleName(vertex_module), fVertexModule(nullptr), fTrack(nullptr) {
+      fHodoscope(nullptr), fVertexModuleName(vertex_module), fVertexModule(nullptr), fTrack(nullptr),
+      fMinimizer(nullptr) {
   // Constructor
   // fGoodLADHits    = nullptr;
   goodhit_n       = 0;
@@ -57,6 +58,7 @@ THcLADKine::~THcLADKine() {
   // delete fGoodLADHits;
   delete[] fFixed_z;
   delete[] rf_offset;
+  delete fMinimizer;
 }
 //_____________________________________________________________________________
 void THcLADKine::Clear(Option_t *opt) {
@@ -781,10 +783,13 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
 
   // requireing the track to originate from vertex (x,y), and only fitting for the track direction (theta, phi) and z
   // vertex position.
-  double chi2                      = -kBig;
-  ROOT::Math::Minimizer *minimizer = ROOT::Math::Factory::CreateMinimizer("Minuit2", "Migrad");
-  minimizer->SetMaxFunctionCalls(1000);
-  minimizer->SetTolerance(1e-6);
+  double chi2 = -kBig;
+  if (!fMinimizer)
+    fMinimizer = ROOT::Math::Factory::CreateMinimizer("Minuit2", "Migrad");
+  fMinimizer->Clear(); // reset variables/state from the previous fit (reused across calls)
+  fMinimizer->SetMaxFunctionCalls(1000);
+  fMinimizer->SetTolerance(1e-6);
+  ROOT::Math::Minimizer *minimizer = fMinimizer;
   ROOT::Math::Functor f(
       [=](const double *params) {
         double theta      = params[0]; //  in radians
@@ -831,16 +836,14 @@ Double_t THcLADKine::FitTrack(TVector3 vertex, std::vector<TVector3> sp_position
                                 fZCellMax); // the target length is 20cm
   minimizer->Minimize();
   if (minimizer->Status() != 0) {
-    delete minimizer;
-    return -6; // Fit did not converge
+    return -6; // Fit did not converge (minimizer is reused, do not delete)
   }
   const double *best_params = minimizer->X();
   dir[0]                    = best_params[0]; // theta in radians
   dir[1]                    = best_params[1]; // phi in radians
   dir[2]                    = best_params[2]; // z vertex position
   chi2                      = minimizer->MinValue();
-  // clean up
-  delete minimizer;
+  // minimizer is reused across calls; do not delete here
 
   // return the chi2 of the fit
   return chi2;

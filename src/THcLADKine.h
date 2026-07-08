@@ -15,6 +15,12 @@ class THcReactionPoint;
 class THcLADHodoscope;
 class THcLADGEM;
 
+namespace ROOT {
+namespace Math {
+class Minimizer;
+}
+} // namespace ROOT
+
 class THcLADKine : public THcPrimaryKine {
 public:
   THcLADKine(const char *name, const char *description = "", const char *spectro = "", const char *primary_kine = "",
@@ -37,6 +43,7 @@ protected:
   THcReactionPoint *fVertexModule;
   THaTrack *fTrack; // Golden Track
   THcTrigDet *fTrigDet;
+  ROOT::Math::Minimizer *fMinimizer; //! reusable Minuit2 minimizer for track fitting (transient)
 
   Int_t MAXGOODHITS = 500;
   Int_t goodhit_n;
