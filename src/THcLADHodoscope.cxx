@@ -259,6 +259,12 @@ Int_t THcLADHodoscope::DefineVariables(EMode mode) {
        "fGoodLADHits.THcGoodLADHit.GetTrackID_noTrackVertex()"},
       {"goodhit_chiSquare_noTrackVertex", "Good hit chi-square (no vertex)",
        "fGoodLADHits.THcGoodLADHit.GetTrkChiSqr_noTrackVertex()"},
+      {"goodhit_trackid_xz", "Good hit track ID (x-z fit)", "fGoodLADHits.THcGoodLADHit.GetTrackID_xz()"},
+      {"goodhit_chiSquare_xz", "Good hit chi-square (x-z fit)", "fGoodLADHits.THcGoodLADHit.GetTrkChiSqr_xz()"},
+      {"goodhit_trackid_noTrackVertex_xz", "Good hit track ID (no vertex, x-z fit)",
+       "fGoodLADHits.THcGoodLADHit.GetTrackID_noTrackVertex_xz()"},
+      {"goodhit_chiSquare_noTrackVertex_xz", "Good hit chi-square (no vertex, x-z fit)",
+       "fGoodLADHits.THcGoodLADHit.GetTrkChiSqr_noTrackVertex_xz()"},
       {"good_hit_n_unique", "Number of unique good hits", "num_unique_good_hits"},
       {"all_hits_n_unique", "Number of all hits, not just with tracks", "num_unique_hits"},
       {0}};
