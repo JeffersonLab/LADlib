@@ -8,12 +8,20 @@ public:
   THcGoodLADHit() {
     for (int i = 0; i < 2; ++i) {
       plane[i] = paddle[i] = -1;
-      hit_tof[i] = hit_tof_rfcorr[i] = hit_time[i] = hit_theta[i] = hit_phi[i] = hit_edep[i] = hit_edep_mev[i] = hit_edep_amp[i] =
-          hit_edep_amp_mev[i] = hit_yPos[i] = hit_alpha[i] = hit_beta[i] = 1e30;
-      is_proton[i]                                 = false;
+      hit_tof[i] = hit_tof_rfcorr[i] = hit_time[i] = hit_theta[i] = hit_phi[i] = hit_edep[i] = hit_edep_mev[i] =
+          hit_edep_amp[i] = hit_edep_amp_mev[i] = hit_yPos[i] = hit_alpha[i] = hit_beta[i] = 1e30;
+      is_proton[i]                                                                         = false;
     }
     trk_chiSqr = 1e30;
     track_id   = -1;
+    // no-vertex tracking associations
+    trk_chiSqr_noTrackVertex = 1e30;
+    track_id_noTrackVertex   = -1;
+    // x-z tracking associations (chi-square ignores the y position)
+    trk_chiSqr_xz               = 1e30;
+    track_id_xz                 = -1;
+    trk_chiSqr_noTrackVertex_xz = 1e30;
+    track_id_noTrackVertex_xz   = -1;
   };
   virtual ~THcGoodLADHit() = default;
 
@@ -33,6 +41,12 @@ public:
   }
   void SetTrackID(Int_t value) { track_id = value; }
   void SetTrkChiSqr(Double_t value) { trk_chiSqr = value; }
+  void SetTrackID_noTrackVertex(Int_t value) { track_id_noTrackVertex = value; }
+  void SetTrkChiSqr_noTrackVertex(Double_t value) { trk_chiSqr_noTrackVertex = value; }
+  void SetTrackID_xz(Int_t value) { track_id_xz = value; }
+  void SetTrkChiSqr_xz(Double_t value) { trk_chiSqr_xz = value; }
+  void SetTrackID_noTrackVertex_xz(Int_t value) { track_id_noTrackVertex_xz = value; }
+  void SetTrkChiSqr_noTrackVertex_xz(Double_t value) { trk_chiSqr_noTrackVertex_xz = value; }
   void SetIsProton(Int_t hit, Bool_t value) {
     CheckHitIndex(hit);
     is_proton[hit] = value;
@@ -137,11 +151,17 @@ public:
   Int_t GetPaddleHit1() const { return paddle[1]; }
 
   Int_t GetTrackID() const { return track_id; }
+  Int_t GetTrackID_noTrackVertex() const { return track_id_noTrackVertex; }
+  Int_t GetTrackID_xz() const { return track_id_xz; }
+  Int_t GetTrackID_noTrackVertex_xz() const { return track_id_noTrackVertex_xz; }
 
   Double_t GetBetaHit0() const { return hit_beta[0]; }
   Double_t GetBetaHit1() const { return hit_beta[1]; }
 
   Double_t GetTrkChiSqr() const { return trk_chiSqr; }
+  Double_t GetTrkChiSqr_noTrackVertex() const { return trk_chiSqr_noTrackVertex; }
+  Double_t GetTrkChiSqr_xz() const { return trk_chiSqr_xz; }
+  Double_t GetTrkChiSqr_noTrackVertex_xz() const { return trk_chiSqr_noTrackVertex_xz; }
 
   Double_t GetIsProtonHit0() const { return is_proton[0]; }
   Double_t GetIsProtonHit1() const { return is_proton[1]; }
@@ -184,6 +204,12 @@ protected:
   Int_t paddle[2];
   Int_t track_id;
   Double_t trk_chiSqr;
+  Int_t track_id_noTrackVertex;         // GEM track ID from the no-vertex fit
+  Double_t trk_chiSqr_noTrackVertex;    // chi-square of the associated no-vertex track
+  Int_t track_id_xz;                    // GEM track ID from the vertex-constrained x-z fit
+  Double_t trk_chiSqr_xz;               // chi-square of the associated x-z (no-y) track
+  Int_t track_id_noTrackVertex_xz;      // GEM track ID from the no-vertex x-z fit
+  Double_t trk_chiSqr_noTrackVertex_xz; // chi-square of the associated no-vertex x-z track
   Double_t is_proton[2];
   Double_t hit_time[2];
   Double_t hit_beta[2];
