@@ -511,6 +511,8 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
         theGEMTrack->SetD0(d0);
         theGEMTrack->SetZVertex(vpz);
         theGEMTrack->SetYVertex(vpy);
+      }else{
+        cout<<"Too many tracks!!! "<< fNTracks << " > "<<MAXTRACKS<<endl;
       }
       fNTracks++;
       gemhit2_id++;
