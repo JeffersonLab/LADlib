@@ -468,7 +468,7 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
         }
       }
 
-      double t = (v_prim - v_hit1).dot(v_hit2 - v_hit1) / (v_hit2 - v_hit1).Mag2();
+      double t = (v_prim - v_hit1).Dot(v_hit2 - v_hit1) / (v_hit2 - v_hit1).Mag2();
       TVector3 v_closest = v_hit1 + t * (v_hit2 - v_hit1);
       TVector3 v_dca = v_prim - v_closest;
       double d0 = v_dca.Mag();
