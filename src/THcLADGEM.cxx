@@ -475,6 +475,7 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
       double d0_y = TMath::Abs(v_dca.Y());
       double d0_x = TMath::Abs(v_dca.X());
       double d0_z = TMath::Abs(v_dca.Z());
+      double d0_xz = TMath::Sqrt(d0_x * d0_x + d0_z * d0_z);
 
       // here we can put a range/fiducial cut on d0 taking into account the target size
 
@@ -485,7 +486,8 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
       //             std::pow(v_hit2.Z() - v_hit1.Z(), 2));
       // double d0 = numer_xz / denom_xz;
 
-      if (d0 > fD0Cut) {
+      ///if (d0 > fD0Cut) {
+      if (d0_y>5|| d0_xz>15) {
         // cout << "d0 too large: " << d0 << endl;
         continue;
       }
