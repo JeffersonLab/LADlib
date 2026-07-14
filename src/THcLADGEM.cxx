@@ -468,10 +468,15 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
         }
       }
 
-      double numer = ((v_prim - v_hit1).Cross((v_prim - v_hit2))).Mag();
-      double denom = (v_hit2 - v_hit1).Mag();
+      double t = (v_prim - v_hit1).dot(v_hit2 - v_hit1) / (v_hit2 - v_hit1).Mag2();
+      TVector3 v_closest = v_hit1 + t * (v_hit2 - v_hit1);
+      TVector3 v_dca = v_prim - v_closest;
+      double d0 = v_dca.Mag();
+      double d0_y = TMath::Abs(v_dca.Y());
+      double d0_x = TMath::Abs(v_dca.X());
+      double d0_z = TMath::Abs(v_dca.Z());
+
       // here we can put a range/fiducial cut on d0 taking into account the target size
-      double d0 = numer / denom;
 
       // Calculate d0 in the x-z plane (y=0)
       // double numer_xz = std::abs((v_prim.X() - v_hit1.X()) * (v_prim.Z() - v_hit2.Z()) -
