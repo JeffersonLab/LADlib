@@ -38,7 +38,7 @@ protected:
   THaTrack *fTrack; // Golden Track
   THcTrigDet *fTrigDet;
 
-  Int_t MAXGOODHITS = 1500;
+  Int_t MAXGOODHITS = 5000;
   Int_t goodhit_n;
   TClonesArray *fGoodLADHits;
   TClonesArray *fGEMTracks;

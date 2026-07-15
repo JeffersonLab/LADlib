@@ -107,7 +107,6 @@ THaAnalysisObject::EStatus THcLADGEM::Init(const TDatime &date) {
     LoadPedestals();
   if (!fCMFilename.empty())
     LoadCM();
-
   return fStatus = kOK;
 }
 
@@ -258,7 +257,9 @@ Int_t THcLADGEM::ReadDatabase(const TDatime &date) {
   prefix[1] = '\0';
 
   // initial values
-  fD0Cut       = 100.0; // DCA cut in cm
+  fD0Cut[0] = 5;  // DCA cut in cm for x
+  fD0Cut[1] = 5;  // DCA cut in cm for y
+  fD0Cut[2] = 15; // DCA cut in cm for z
   fPedFilename = "";
   fCMFilename  = "";
   fPedestalMode = 0;
@@ -266,7 +267,7 @@ Int_t THcLADGEM::ReadDatabase(const TDatime &date) {
                       {"gem_num_layers", &fNLayers, kInt},
                       {"gem_pedfile", &fPedFilename, kString, 0, 1},
                       {"gem_cmfile", &fCMFilename, kString, 0, 1},
-                      {"gem_d0_cut", &fD0Cut, kDouble, 0, 1},
+                      {"gem_d0_cut", fD0Cut,  kDouble, static_cast<UInt_t>(3)},
                       {0}
 
   };
@@ -486,7 +487,7 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
       // double d0 = numer_xz / denom_xz;
 
       ///if (d0 > fD0Cut) {
-      if (d0_y>5|| d0_x>5 || d0_z>15) {
+      if ( d0_x>fD0Cut[0] || d0_y>fD0Cut[1] || d0_z>fD0Cut[2]) {
         // cout << "d0 too large: " << d0 << endl;
         continue;
       }
