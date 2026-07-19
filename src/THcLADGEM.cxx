@@ -257,9 +257,7 @@ Int_t THcLADGEM::ReadDatabase(const TDatime &date) {
   prefix[1] = '\0';
 
   // initial values
-  fD0Cut[0] = 5;  // DCA cut in cm for x
-  fD0Cut[1] = 5;  // DCA cut in cm for y
-  fD0Cut[2] = 15; // DCA cut in cm for z
+  fD0Cut = 20; // DCA cut in cm for z
   fPedFilename = "";
   fCMFilename  = "";
   fPedestalMode = 0;
@@ -267,7 +265,7 @@ Int_t THcLADGEM::ReadDatabase(const TDatime &date) {
                       {"gem_num_layers", &fNLayers, kInt},
                       {"gem_pedfile", &fPedFilename, kString, 0, 1},
                       {"gem_cmfile", &fCMFilename, kString, 0, 1},
-                      {"gem_d0_cut", fD0Cut,  kDouble, 0, 1},
+                      {"gem_d0_cut", &fD0Cut,  kDouble, 0, 1},
                       {0}
 
   };

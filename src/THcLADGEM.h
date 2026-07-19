@@ -82,7 +82,7 @@ protected:
   std::string fPedFilename;
   std::string fCMFilename;
 
-  Double_t fD0Cut[3]; //D0 cut for x, y, z
+  Double_t fD0Cut; //D0 cut 
 
   TClonesArray *fGEMTracks;
 
