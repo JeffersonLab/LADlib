@@ -267,7 +267,7 @@ Int_t THcLADGEM::ReadDatabase(const TDatime &date) {
                       {"gem_num_layers", &fNLayers, kInt},
                       {"gem_pedfile", &fPedFilename, kString, 0, 1},
                       {"gem_cmfile", &fCMFilename, kString, 0, 1},
-                      {"gem_d0_cut", fD0Cut,  kDouble, static_cast<UInt_t>(3)},
+                      {"gem_d0_cut", fD0Cut,  kDouble, 0, 1},
                       {0}
 
   };
@@ -473,9 +473,9 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
       TVector3 v_closest = v_hit1 + t * (v_hit2 - v_hit1);
       TVector3 v_dca = v_prim - v_closest;
       double d0 = v_dca.Mag();
-      double d0_y = TMath::Abs(v_dca.Y());
-      double d0_x = TMath::Abs(v_dca.X());
-      double d0_z = TMath::Abs(v_dca.Z());
+      //double d0_y = TMath::Abs(v_dca.Y());
+      //double d0_x = TMath::Abs(v_dca.X());
+      //double d0_z = TMath::Abs(v_dca.Z());
 
       // here we can put a range/fiducial cut on d0 taking into account the target size
 
@@ -486,8 +486,8 @@ Int_t THcLADGEM::CoarseProcess(TClonesArray &tracks) {
       //             std::pow(v_hit2.Z() - v_hit1.Z(), 2));
       // double d0 = numer_xz / denom_xz;
 
-      ///if (d0 > fD0Cut) {
-      if ( d0_x>fD0Cut[0] || d0_y>fD0Cut[1] || d0_z>fD0Cut[2]) {
+      if (d0 > fD0Cut) {
+      //if ( d0_x>fD0Cut[0] || d0_y>fD0Cut[1] || d0_z>fD0Cut[2]) {
         // cout << "d0 too large: " << d0 << endl;
         continue;
       }
