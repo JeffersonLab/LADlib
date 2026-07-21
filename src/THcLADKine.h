@@ -87,6 +87,11 @@ protected:
   Double_t
       fSigma_Hodo; // Hodoscope resolution in cm, used for track fitting, should be set based on detector performance
 
+  // Tracking-mode toggles (DB keys ldo_noVertex_tracking / ldo_xz_tracking).
+  // Stored as Int_t (0/1) because the DB loader writes kInt.
+  Int_t fDoNoVertexTracking; // 1 = run the no-vertex tracking pass (default 1)
+  Int_t fDoXZTracking;       // 1 = run the x-z (no-y) tracking passes (default 0)
+
   virtual Int_t DefineVariables(EMode mode = kDefine);
   void CalculateTVertex();
   Double_t CalculateToF(Double_t t_raw);

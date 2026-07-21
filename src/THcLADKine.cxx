@@ -49,6 +49,9 @@ ClassImp(THcLADKine)
   fchisq_cut[1] = 15.0;                      // default chi2 cut for tracks with 1 hodo hit
   fSigma_GEM    = 0.1;                       // default GEM resolution in cm
   fSigma_Hodo   = 10;                        // default Hodoscope resolution in cm
+
+  fDoNoVertexTracking = 1; // run the no-vertex tracking pass by default
+  fDoXZTracking       = 0; // x-z (no-y) tracking off by default
 }
 //_____________________________________________________________________________
 THcLADKine::~THcLADKine() {
@@ -153,6 +156,8 @@ Int_t THcLADKine::ReadDatabase(const TDatime &date) {
   fNfixed_z             = 0;
   fglobal_time_offset   = 0.0;
   fTrk_dtCut            = 10.0;
+  fDoNoVertexTracking   = 1; // default: no-vertex tracking on
+  fDoXZTracking         = 0; // default: x-z (no-y) tracking off
 
   cout << "Reading LAD Kinematics parameters from database..." << endl;
 
@@ -163,6 +168,8 @@ Int_t THcLADKine::ReadDatabase(const TDatime &date) {
                       {"nfixed_z", &fNfixed_z, kInt, 0, 1},
                       {"global_time_offset", &fglobal_time_offset, kDouble, 0, 1},
                       {"trk_dt_cut", &fTrk_dtCut, kDouble, 0, 1},
+                      {"do_noVertex_tracking", &fDoNoVertexTracking, kInt, 0, 1},
+                      {"do_xz_tracking", &fDoXZTracking, kInt, 0, 1},
                       {"_rf_period", &rf_period, kDouble, 0, 1},
                       {"proton_front_edep_cut", &fFrontPlaneEdepCut, kDouble, 0, 1},
                       {"proton_back_dt_min", &fBackPlaneDtMin, kDouble, 0, 1},
@@ -495,6 +502,11 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
   // no-vertex fit is only meaningful when there is at least one hodoscope hit,
   // so tracks with no hodo hit get no valid no-vertex result.
   for (Int_t iTrack = 0; iTrack < ntracks; iTrack++) {
+    // no-vertex tracking pass; enabled via the ldo_noVertex_tracking DB flag (default on).
+    // The flag is loop-invariant, so break skips the whole pass (tracks are freshly
+    // constructed each event, so their _noTrackVertex members keep the invalid defaults).
+    if (!fDoNoVertexTracking)
+      break;
     THcLADGEMTrack *track = static_cast<THcLADGEMTrack *>(fGEMTracks->At(iTrack));
     if (track == nullptr)
       continue;
@@ -698,6 +710,9 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
   // the parallel _xz members so they can be compared against the full 3D fit.
   std::vector<bool> isGoodTrack_xz(ntracks, false);
   for (Int_t iTrack = 0; iTrack < ntracks; iTrack++) {
+    // vertex-constrained x-z tracking pass; enabled via the ldo_xz_tracking DB flag (default off).
+    if (!fDoXZTracking)
+      break;
     THcLADGEMTrack *track = static_cast<THcLADGEMTrack *>(fGEMTracks->At(iTrack));
     if (track == nullptr)
       continue;
@@ -938,6 +953,9 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
   // position (FitTrack_noTrackVertex called with use_y = false). Results are
   // stored in the parallel _noTrackVertex_xz members.
   for (Int_t iTrack = 0; iTrack < ntracks; iTrack++) {
+    // no-vertex x-z tracking pass; needs BOTH ldo_noVertex_tracking and ldo_xz_tracking.
+    if (!(fDoNoVertexTracking && fDoXZTracking))
+      break;
     THcLADGEMTrack *track = static_cast<THcLADGEMTrack *>(fGEMTracks->At(iTrack));
     if (track == nullptr)
       continue;
