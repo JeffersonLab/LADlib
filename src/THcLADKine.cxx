@@ -28,6 +28,9 @@ ClassImp(THcLADKine)
   fTVertex        = kBig;
   fRFTime         = kBig;
   fTVertex_RFcorr = kBig;
+  fVertexZMax     = 20.0; // cm
+  fRejectBadZ     = 1;
+  fZTof           = 0.0;
   fFixed_z        = nullptr;
   rf_offset       = nullptr;
   n_rf_offsets    = 0;
@@ -74,6 +77,7 @@ void THcLADKine::Clear(Option_t *opt) {
   fTVertex        = kBig;
   fRFTime         = kBig;
   fTVertex_RFcorr = kBig;
+  fZTof           = 0.0;
   vertex.SetXYZ(0, 0, 0);
 }
 //_____________________________________________________________________________
@@ -153,6 +157,8 @@ Int_t THcLADKine::ReadDatabase(const TDatime &date) {
   fD0Cut_noVertex      = 0.0;
   fNfixed_z            = 0;
   fglobal_time_offset  = 0.0;
+  fVertexZMax          = 20.0; // cm
+  fRejectBadZ          = 1;
   fTrk_dtCut           = 10.0;
   fDoNoVertexTracking  = 1; // default: no-vertex tracking on
   fDoXZTracking        = 0; // default: x-z (no-y) tracking off
@@ -163,6 +169,8 @@ Int_t THcLADKine::ReadDatabase(const TDatime &date) {
                       {"d0_cut_noVertex", &fD0Cut_noVertex, kDouble, 0, 1},
                       {"nfixed_z", &fNfixed_z, kInt, 0, 1},
                       {"global_time_offset", &fglobal_time_offset, kDouble, 0, 1},
+                      {"vertex_zmax", &fVertexZMax, kDouble, 0, 1},
+                      {"vertex_bad_z_reject", &fRejectBadZ, kInt, 0, 1},
                       {"trk_dt_cut", &fTrk_dtCut, kDouble, 0, 1},
                       {"do_noVertex_tracking", &fDoNoVertexTracking, kInt, 0, 1},
                       {"do_xz_tracking", &fDoXZTracking, kInt, 0, 1},
@@ -174,6 +182,22 @@ Int_t THcLADKine::ReadDatabase(const TDatime &date) {
                       {"proton_back_x_diag", &fBackPlaneXDiag, kDouble, 0, 1},
                       {0}};
   gHcParms->LoadParmValues((DBRequest *)&list, prefix);
+
+  // Per-spectrometer LAD ToF offset. The LAD hit time is referenced to the vertex
+  // time of this spectrometer, and the SHMS and HMS vertex times differ, so each
+  // needs its own offset to put the photon peak at tof = L/c. Optional: when the
+  // key for this spectrometer is absent, the shared global_time_offset is used.
+  Double_t offset_shms = kBig, offset_hms = kBig;
+  DBRequest list_offsets[] = {{"global_time_offset_shms", &offset_shms, kDouble, 0, 1},
+                              {"global_time_offset_hms", &offset_hms, kDouble, 0, 1},
+                              {0}};
+  gHcParms->LoadParmValues((DBRequest *)&list_offsets, prefix);
+  const char spec_prefix = tolower(fSpecName[0]);
+  const Double_t spec_offset = (spec_prefix == 'p') ? offset_shms : (spec_prefix == 'h') ? offset_hms : kBig;
+  if (spec_offset < 0.1 * kBig)
+    fglobal_time_offset = spec_offset;
+  cout << "  " << GetName() << ": LAD ToF offset = " << fglobal_time_offset << " ns"
+       << (spec_offset < 0.1 * kBig ? "" : " (shared global_time_offset)") << endl;
 
   DBRequest list_rf[] = {{"_nr_rf_offsets", &n_rf_offsets, kInt, 0, 1}, {0}};
   gHcParms->LoadParmValues((DBRequest *)&list_rf, prefix);
@@ -426,69 +450,45 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
       // only fit
       hit_index_for_best_chisq = 0 * 3 + 0;
     }
-    track->SetChisq(bestchisq[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3]);
-    track->SetAngles(best_gemdir[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3][0],
-                     best_gemdir[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3][1]);
-    track->SetProjVertex(vertex.X(), vertex.Y(),
-                         best_gemdir[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3][2]);
-    Double_t d0 = fabs(vertex.Z() - best_gemdir[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3][2]);
+    const int cat = hit_index_for_best_chisq / 3, sub = hit_index_for_best_chisq % 3;
+    track->SetChisq(bestchisq[cat][sub]);
+    track->SetAngles(best_gemdir[cat][sub][0], best_gemdir[cat][sub][1]);
+    track->SetProjVertex(vertex.X(), vertex.Y(), best_gemdir[cat][sub][2]);
+    Double_t d0 = fabs(vertex.Z() - best_gemdir[cat][sub][2]);
     track->SetD0(d0);
 
-    track->SetHasHodoHit(hit_index_for_best_chisq / 3);
-    if (hit_index_for_best_chisq >= 1) {
-      THcGoodLADHit *besthit = static_cast<THcGoodLADHit *>(
-          LADHits_unfiltered->At(bestHodoHitIndex[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3]));
-      // THcGoodLADHit *newhit  = static_cast<THcGoodLADHit *>(fGoodLADHits->ConstructedAt(goodhit_n));
+    // Track cuts first, so that a track they reject cannot claim a hodo hit below.
+    bool trackOK = track->GetGoodD0() ? (d0 > 0 && d0 < fD0Cut_wVertex) : (d0 > 0 && d0 < fD0Cut_noVertex);
+    if (track->GetChisq() < 0 || track->GetdT() > fTrk_dtCut)
+      trackOK = false;
+
+    track->SetHasHodoHit(cat);
+    track->SetBestHodoHit(nullptr);
+    if (cat >= 1) {
+      THcGoodLADHit *besthit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex[cat][sub]));
       goodhit_n++;
       if (besthit == nullptr) {
-        track->SetBestHodoHit(nullptr);
-        continue;
-      }
-      if (goodhit_n <= MAXGOODHITS) {
-        if (hit_index_for_best_chisq / 3 == 2) {
-          int ntmp = 0;
-          if (hit_index_for_best_chisq % 3 == 1 || hit_index_for_best_chisq % 3 == 0) {
-            ntmp++;
-          }
-          if (hit_index_for_best_chisq % 3 == 2 || hit_index_for_best_chisq % 3 == 0) {
-            ntmp++;
-          }
-          track->SetHasHodoHit(ntmp);
+        trackOK = false;
+      } else if (goodhit_n > MAXGOODHITS) {
+        cout << "THcLADKine::Process: Exceeded maximum number of good hits (" << goodhit_n << "/" << MAXGOODHITS
+             << "), skipping hit." << endl;
+        trackOK = false;
+      } else {
+        const int nhodo = (cat == 2 && sub == 0) ? 2 : 1;
+        // dof = 3*(#GEM + #hodo) - 3 params (full 3D residual, vertex-constrained)
+        const int ndof = 3 * (2 + nhodo) - 3;
+        track->SetHasHodoHit(nhodo);
+        track->SetBestHodoHit(besthit);
+        // Several tracks can pick the same hit as their best; the hit keeps the good one with the lowest
+        // chi2/ndof (it used to keep the last one in the loop, including tracks rejected by the cuts above).
+        if (trackOK && BetterTrack(track->GetChisq(), ndof, besthit->GetTrkChiSqr(), besthit->GetTrkNdof())) {
           besthit->SetTrackID(track->GetTrackID());
           besthit->SetTrkChiSqr(track->GetChisq());
-        } else if (hit_index_for_best_chisq / 3 == 1) {
-          besthit->SetTrackID(track->GetTrackID());
-          besthit->SetTrkChiSqr(track->GetChisq());
-          track->SetHasHodoHit(1);
+          besthit->SetTrkNdof(ndof);
         }
-        if (hit_index_for_best_chisq / 3 != 0) {
-          track->SetBestHodoHit(besthit);
-          isGoodTrack[iTrack] = true;
-        }
-      }else{
-        cout<<"THcLADKine::Process: Exceeded maximum number of good hits ("<<goodhit_n<<"/"<<MAXGOODHITS<<"), skipping hit."<<endl;
-      }
-    } else {
-      track->SetBestHodoHit(nullptr);
-      track->SetHasHodoHit(0);
-      isGoodTrack[iTrack] = true;
-    }
-
-    if (track->GetGoodD0()) {
-      if (!(track->GetD0() > 0 && track->GetD0() < fD0Cut_wVertex)) {
-        isGoodTrack[iTrack] = false; // reject tracks whose D0 is outside the allowed range
-      }
-    } else {
-      if (!(track->GetD0() > 0 && track->GetD0() < fD0Cut_noVertex)) {
-        isGoodTrack[iTrack] = false;
       }
     }
-    if (track->GetChisq() < 0) {
-      isGoodTrack[iTrack] = false;
-    }
-    if (track->GetdT() > fTrk_dtCut) {
-      isGoodTrack[iTrack] = false;
-    }
+    isGoodTrack[iTrack] = trackOK;
     track->SetIsGoodTrack(isGoodTrack[iTrack]);
   }
 
@@ -684,12 +684,6 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     track->SetHasHodoHit_noTrackVertex(nplanes);
     THcGoodLADHit *besthit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex[cat][sub]));
     track->SetBestHodoHit_noTrackVertex(besthit);
-    if (besthit) {
-      // per-hit association from the no-vertex fit (parallel to the vertex-based track_id / trk_chiSqr)
-      besthit->SetTrackID_noTrackVertex(track->GetTrackID());
-      besthit->SetTrkChiSqr_noTrackVertex(track->GetChisq_noTrackVertex());
-    }
-
     bool good     = kTRUE;
     Double_t d0nv = track->GetD0_noTrackVertex();
     if (!(d0nv > 0 && d0nv < fD0Cut_noVertex))
@@ -699,6 +693,17 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     if (track->GetdT() > fTrk_dtCut)
       good = kFALSE;
     track->SetIsGoodTrack_noTrackVertex(good);
+
+    // dof = 3*(#GEM + #hodo) - 4 params (full 3D residual, free line, no vertex)
+    const int ndof_nv = 3 * (2 + nplanes) - 4;
+    // per-hit association from the no-vertex fit: the hit keeps the good track with the lowest chi2/ndof
+    if (besthit && good &&
+        BetterTrack(track->GetChisq_noTrackVertex(), ndof_nv, besthit->GetTrkChiSqr_noTrackVertex(),
+                    besthit->GetTrkNdof_noTrackVertex())) {
+      besthit->SetTrackID_noTrackVertex(track->GetTrackID());
+      besthit->SetTrkChiSqr_noTrackVertex(track->GetChisq_noTrackVertex());
+      besthit->SetTrkNdof_noTrackVertex(ndof_nv);
+    }
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -885,63 +890,39 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
                                      bestchisq[0][0]) > fchisq_cut[1]) {
       hit_index_for_best_chisq = 0 * 3 + 0;
     }
-    track->SetChisq_xz(bestchisq[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3]);
-    track->SetAngles_xz(best_gemdir[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3][0],
-                        best_gemdir[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3][1]);
-    track->SetProjVertex_xz(vertex.X(), vertex.Y(),
-                            best_gemdir[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3][2]);
-    Double_t d0_xz = fabs(vertex.Z() - best_gemdir[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3][2]);
+    const int cat = hit_index_for_best_chisq / 3, sub = hit_index_for_best_chisq % 3;
+    track->SetChisq_xz(bestchisq[cat][sub]);
+    track->SetAngles_xz(best_gemdir[cat][sub][0], best_gemdir[cat][sub][1]);
+    track->SetProjVertex_xz(vertex.X(), vertex.Y(), best_gemdir[cat][sub][2]);
+    Double_t d0_xz = fabs(vertex.Z() - best_gemdir[cat][sub][2]);
     track->SetD0_xz(d0_xz);
 
-    track->SetHasHodoHit_xz(hit_index_for_best_chisq / 3);
-    if (hit_index_for_best_chisq >= 1) {
-      THcGoodLADHit *besthit = static_cast<THcGoodLADHit *>(
-          LADHits_unfiltered->At(bestHodoHitIndex[hit_index_for_best_chisq / 3][hit_index_for_best_chisq % 3]));
-      if (besthit == nullptr) {
-        track->SetBestHodoHit_xz(nullptr);
-        continue;
-      }
-      if (hit_index_for_best_chisq / 3 == 2) {
-        int ntmp = 0;
-        if (hit_index_for_best_chisq % 3 == 1 || hit_index_for_best_chisq % 3 == 0) {
-          ntmp++;
-        }
-        if (hit_index_for_best_chisq % 3 == 2 || hit_index_for_best_chisq % 3 == 0) {
-          ntmp++;
-        }
-        track->SetHasHodoHit_xz(ntmp);
-        besthit->SetTrackID_xz(track->GetTrackID());
-        besthit->SetTrkChiSqr_xz(track->GetChisq_xz());
-      } else if (hit_index_for_best_chisq / 3 == 1) {
-        besthit->SetTrackID_xz(track->GetTrackID());
-        besthit->SetTrkChiSqr_xz(track->GetChisq_xz());
-        track->SetHasHodoHit_xz(1);
-      }
-      if (hit_index_for_best_chisq / 3 != 0) {
-        track->SetBestHodoHit_xz(besthit);
-        isGoodTrack_xz[iTrack] = true;
-      }
-    } else {
-      track->SetBestHodoHit_xz(nullptr);
-      track->SetHasHodoHit_xz(0);
-      isGoodTrack_xz[iTrack] = true;
-    }
+    // Track cuts first, so that a track they reject cannot claim a hodo hit below.
+    bool trackOK = track->GetGoodD0() ? (d0_xz > 0 && d0_xz < fD0Cut_wVertex) : (d0_xz > 0 && d0_xz < fD0Cut_noVertex);
+    if (track->GetChisq_xz() < 0 || track->GetdT() > fTrk_dtCut)
+      trackOK = false;
 
-    if (track->GetGoodD0()) {
-      if (!(track->GetD0_xz() > 0 && track->GetD0_xz() < fD0Cut_wVertex)) {
-        isGoodTrack_xz[iTrack] = false;
+    track->SetHasHodoHit_xz(cat);
+    track->SetBestHodoHit_xz(nullptr);
+    if (cat >= 1) {
+      THcGoodLADHit *besthit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex[cat][sub]));
+      if (besthit == nullptr) {
+        trackOK = false;
+      } else {
+        const int nhodo = (cat == 2 && sub == 0) ? 2 : 1;
+        // dof = 2*(#GEM + #hodo) - 3 params (x-z residual only, vertex-constrained)
+        const int ndof = 2 * (2 + nhodo) - 3;
+        track->SetHasHodoHit_xz(nhodo);
+        track->SetBestHodoHit_xz(besthit);
+        // the hit keeps the good track with the lowest chi2/ndof (see the vertex-constrained pass)
+        if (trackOK && BetterTrack(track->GetChisq_xz(), ndof, besthit->GetTrkChiSqr_xz(), besthit->GetTrkNdof_xz())) {
+          besthit->SetTrackID_xz(track->GetTrackID());
+          besthit->SetTrkChiSqr_xz(track->GetChisq_xz());
+          besthit->SetTrkNdof_xz(ndof);
+        }
       }
-    } else {
-      if (!(track->GetD0_xz() > 0 && track->GetD0_xz() < fD0Cut_noVertex)) {
-        isGoodTrack_xz[iTrack] = false;
-      }
     }
-    if (track->GetChisq_xz() < 0) {
-      isGoodTrack_xz[iTrack] = false;
-    }
-    if (track->GetdT() > fTrk_dtCut) {
-      isGoodTrack_xz[iTrack] = false;
-    }
+    isGoodTrack_xz[iTrack] = trackOK;
     track->SetIsGoodTrack_xz(isGoodTrack_xz[iTrack]);
   }
 
@@ -1128,12 +1109,6 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     track->SetHasHodoHit_noTrackVertex_xz(nplanes);
     THcGoodLADHit *besthit = static_cast<THcGoodLADHit *>(LADHits_unfiltered->At(bestHodoHitIndex[cat][sub]));
     track->SetBestHodoHit_noTrackVertex_xz(besthit);
-    if (besthit) {
-      // per-hit association from the no-vertex x-z fit
-      besthit->SetTrackID_noTrackVertex_xz(track->GetTrackID());
-      besthit->SetTrkChiSqr_noTrackVertex_xz(track->GetChisq_noTrackVertex_xz());
-    }
-
     bool good     = kTRUE;
     Double_t d0nv = track->GetD0_noTrackVertex_xz();
     if (!(d0nv > 0 && d0nv < fD0Cut_noVertex))
@@ -1143,6 +1118,17 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     if (track->GetdT() > fTrk_dtCut)
       good = kFALSE;
     track->SetIsGoodTrack_noTrackVertex_xz(good);
+
+    // dof = 2*(#GEM + #hodo) - 4 params (x-z residual only, free line, no vertex)
+    const int ndof_nv = 2 * (2 + nplanes) - 4;
+    // per-hit association from the no-vertex x-z fit: the hit keeps the good track with the lowest chi2/ndof
+    if (besthit && good &&
+        BetterTrack(track->GetChisq_noTrackVertex_xz(), ndof_nv, besthit->GetTrkChiSqr_noTrackVertex_xz(),
+                    besthit->GetTrkNdof_noTrackVertex_xz())) {
+      besthit->SetTrackID_noTrackVertex_xz(track->GetTrackID());
+      besthit->SetTrkChiSqr_noTrackVertex_xz(track->GetChisq_noTrackVertex_xz());
+      besthit->SetTrkNdof_noTrackVertex_xz(ndof_nv);
+    }
   }
 
   // Refresh the event vertex for the hit ToF RF correction. The per-track loops
@@ -1161,20 +1147,27 @@ Int_t THcLADKine::Process(const THaEvData &evdata) {
     if (goodhit == nullptr)
       continue;
 
-    Double_t tof, tof_rfcorr, beta, alpha;
-    if (goodhit->GetPlaneHit0() >= 0 && goodhit->GetPlaneHit0() < 999) {
-      tof = CalculateToF(goodhit->GetHitTimeHit0());
-      goodhit->SetHitTOF(0, tof);
-      tof_rfcorr = CalculateTOFRFcorr(goodhit->GetHitTimeHit0());
-      goodhit->SetHitTOFRFcorr(0, tof_rfcorr);
-      // Calculate beta, alpha, etc. for the first plane
-    }
-    if (goodhit->GetPlaneHit1() >= 0 && goodhit->GetPlaneHit1() < 999) {
-      tof = CalculateToF(goodhit->GetHitTimeHit1());
-      goodhit->SetHitTOF(1, tof);
-      tof_rfcorr = CalculateTOFRFcorr(goodhit->GetHitTimeHit1());
-      goodhit->SetHitTOFRFcorr(1, tof_rfcorr);
-      // Calculate beta, alpha, etc. for the second plane
+    for (int s = 0; s < 2; s++) {
+      const Int_t plane = s ? goodhit->GetPlaneHit1() : goodhit->GetPlaneHit0();
+      if (plane < 0 || plane >= 999)
+        continue;
+      const Double_t t     = s ? goodhit->GetHitTimeHit1() : goodhit->GetHitTimeHit0();
+      Double_t tof         = CalculateToF(t);
+      Double_t tof_rfcorr  = CalculateTOFRFcorr(t);
+      goodhit->SetHitTOF(s, tof);
+      goodhit->SetHitTOFRFcorr(s, tof_rfcorr);
+      // Path from the vertex to the hit (paddle centre, measured y, plane position): no GEM track needed.
+      const Int_t paddle = s ? goodhit->GetPaddleHit1() : goodhit->GetPaddleHit0();
+      const Double_t y   = s ? goodhit->GetHitYPosHit1() : goodhit->GetHitYPosHit0();
+      const Double_t path = (fHodoscope->GetHitPositionLab(plane, paddle, y) - vertex).Mag(); // cm
+      goodhit->SetHitPath(s, path);
+      if (path > 0 && fabs(tof) < 1e9)
+        goodhit->SetHitTOFperM(s, tof / (0.01 * path));
+      if (path > 0 && fabs(tof_rfcorr) < 1e9) {
+        goodhit->SetHitTOFperMRFcorr(s, tof_rfcorr / (0.01 * path));
+        if (tof_rfcorr != 0)
+          goodhit->SetHitBeta(s, path / (tof_rfcorr * 29.9792458));
+      }
     }
   }
 
@@ -1248,7 +1241,26 @@ void THcLADKine::MakeProtonCut(TClonesArray *hits) {
 }
 //_____________________________________________________________________________
 void THcLADKine::CalculateTVertex() {
-  // Calculate the time of flight
+  // Electron interaction time at the vertex (fTVertex) and the RF-bucket time at
+  // the target centre (fTVertex_RFcorr), from the golden track.
+
+  // Vertex z used by the ToF corrections: this spectrometer's reaction point, or
+  // the target centre (z = 0) when there is none. A reaction point outside
+  // |z| < vertex_zmax is a junk reconstruction (some reach |z| of metres, i.e.
+  // ToF shifts of many ns, z/c = 3.3 ns per metre): with vertex_bad_z_reject = 1
+  // the ToF of that event is not computed (fZTof = kBig, ToF = kBig); with 0 the
+  // target centre is used. Rejecting gave the narrower photon peak (SHMS: ~9% of
+  // LAD hits have such a vertex, and their timing is worse).
+  fZTof = 0.0;
+  if (fVertexModule && fVertexModule->HasVertex()) {
+    const Double_t z = fVertexModule->GetVertex().Z();
+    if (fVertexZMax <= 0 || std::fabs(z) < fVertexZMax)
+      fZTof = z;
+    else if (fRejectBadZ)
+      fZTof = kBig;
+  }
+  const Double_t zcorr = (fZTof < 0.1 * kBig) ? fZTof : 0.0; // z used in the time arithmetic
+
   if (fTrack == nullptr) {
     // Error("CalculateToF", "No track found");
     return;
@@ -1289,10 +1301,25 @@ void THcLADKine::CalculateTVertex() {
     return;
   }
 
+  // The central path length is measured from the target centre. A vertex at z on
+  // the beam line is z*cos(theta_e) closer to the spectrometer (theta_e = electron
+  // lab angle), so the electron path is shorter by that much. Without this term
+  // fTVertex is early by z*cos(theta_e)/c (0.32 ns for z = 10 cm at 13 deg).
+  const TVector3 &pv = fTrack->GetPvect();
+  const Double_t costh_e =
+      (pv.Mag() > 0. && pv.Mag() < 1e10) ? pv.CosTheta() : std::cos(fSpectro ? fSpectro->GetThetaGeo() : 0.);
+  DeltaPathLength -= zcorr * costh_e;
+
   Double_t beta_calc      = elec_P / sqrt(elec_P * elec_P + elecMass * elecMass);
   Double_t PathLengthCorr = DeltaPathLength / (lightSpeed * beta_calc);
 
   fTVertex = fPtime - PathLengthCorr;
+
+  // Time the electron's bunch passed the target centre: the beam reaches z a time
+  // z/c after z = 0. This is what the RF correction snaps to the nearest bucket,
+  // so fTVertex_RFcorr is the bucket time at the target centre (CalculateTOFRFcorr
+  // adds the z/c back).
+  const Double_t t_bunch0 = fTVertex - zcorr / this->lightSpeed;
 
   // Look up the run number; default to a safe value (0 -> first offset row) if unavailable
   Int_t run_number = 0;
@@ -1325,10 +1352,10 @@ void THcLADKine::CalculateTVertex() {
 
     // std::remainder maps the value into [-rf_period/2, +rf_period/2] directly.
     // (fmod would instead return a full-period range with the sign of the dividend.)
-    double tmp      = std::remainder(fTVertex - fRFTime + rf_offset[fRFTimeIndex], rf_period);
-    fTVertex_RFcorr = fTVertex - tmp;
+    double tmp      = std::remainder(t_bunch0 - fRFTime + rf_offset[fRFTimeIndex], rf_period);
+    fTVertex_RFcorr = t_bunch0 - tmp;
   } else {
-    fTVertex_RFcorr = fTVertex; // no RF offsets available
+    fTVertex_RFcorr = t_bunch0; // no RF offsets available
   }
 
   // cout << "Offset" << rf_offset[fRFTimeIndex] << " Offset Index " << fRFTimeIndex << " RF Time " << fRFTime
@@ -1337,16 +1364,22 @@ void THcLADKine::CalculateTVertex() {
 }
 //_____________________________________________________________________________
 Double_t THcLADKine::CalculateToF(Double_t t_raw) {
+  if (fZTof >= 0.1 * kBig)
+    return kBig; // vertex outside |z| < vertex_zmax (vertex_bad_z_reject = 1)
 
   Double_t tof = t_raw - fTVertex + fglobal_time_offset;
 
   return tof;
 }
 Double_t THcLADKine::CalculateTOFRFcorr(Double_t t_raw) {
+  if (fZTof >= 0.1 * kBig)
+    return kBig; // vertex outside |z| < vertex_zmax (vertex_bad_z_reject = 1)
 
   Double_t tof = t_raw - fTVertex_RFcorr + fglobal_time_offset;
 
-  tof -= vertex.Z() / lightSpeed;
+  // fTVertex_RFcorr is the bucket time at the target centre; the interaction at z
+  // happened z/c later (fZTof: within |z| < vertex_zmax, or 0 without a vertex).
+  tof -= fZTof / lightSpeed;
 
   return tof;
 }
@@ -1359,8 +1392,9 @@ Int_t THcLADKine::DefineVariables(EMode mode) {
   // Define variables for the analysis tree
   if (mode == kDefine) {
     RVarDef vars[] = {
-        {"t_vertex", "Calculated vertex time", "fTVertex"},
-        {"t_vertex_RFcorr", "Calculated vertex time (RF corrected)", "fTVertex_RFcorr"},
+        {"t_vertex", "Electron interaction time at the vertex (path length from the vertex z)", "fTVertex"},
+        {"t_vertex_RFcorr", "RF-bucket time at the target centre (RF corrected vertex time)", "fTVertex_RFcorr"},
+        {"z_tof", "Vertex z used for the ToF corrections (cm); 0 if no vertex, kBig if outside vertex_zmax and rejected", "fZTof"},
         // All below variables are defined and identical to those in ladhodo. Just use H/P.ladhod.var
 
         // {"n_goodhits", "Number of good hits", "goodhit_n"},

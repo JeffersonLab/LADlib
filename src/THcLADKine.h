@@ -54,8 +54,11 @@ protected:
   Double_t fTrk_dtCut;
   Int_t fNfixed_z;
   Double_t *fFixed_z;
-  Double_t fglobal_time_offset;
-  Double_t fTVertex;
+  Double_t fglobal_time_offset; // LAD ToF offset (ns) for this spectrometer (global_time_offset_shms/_hms, else global_time_offset)
+  Double_t fTVertex;        // electron interaction time at the vertex (ns)
+  Double_t fVertexZMax;     // |vertex z| limit (cm) for the ToF corrections; <= 0 = no limit
+  Int_t fRejectBadZ;        // 1: no ToF when the vertex is outside the limit; 0: use the target centre instead
+  Double_t fZTof;           // vertex z used for the ToF corrections (cm): reaction point, 0 if none, kBig if rejected
   Double_t fRFTime;
   Double_t fTVertex_RFcorr;
   Int_t n_rf_offsets;
@@ -97,6 +100,10 @@ protected:
   // use_y = true  -> full 3D perpendicular residual (x, y, z) as before.
   // use_y = false -> the (dy)^2 term is dropped, so only the x and z residuals
   //                  enter the chi-square ("x-z tracking").
+  // true if a track with (chi2, ndof) should replace the one a hodo hit holds (oldchi2, oldndof; ndof <= 0 = none)
+  static bool BetterTrack(Double_t chi2, Int_t ndof, Double_t oldchi2, Int_t oldndof) {
+    return oldndof <= 0 || chi2 / (ndof > 0 ? ndof : 1) < oldchi2 / oldndof;
+  }
   Double_t FitTrack(TVector3 vertex, std::vector<TVector3> sp_positions, std::vector<double> sp_resolutions,
                     double dir[3], bool use_y = true);
   // No-vertex variant: fit a free 3D line (4 DOF) through the GEM + hodoscope
