@@ -39,6 +39,9 @@ THcLADHodoPlane::THcLADHodoPlane(const char *name, const char *description, cons
   frTopTdcTime      = new TClonesArray("THcSignalHit", MAX_HITS);
   frTopAdcPed       = new TClonesArray("THcSignalHit", MAX_HITS);
   frTopAdcPulseInt  = new TClonesArray("THcSignalHit", MAX_HITS);
+  frTopAdcPulseWinTrunc  = new TClonesArray("THcSignalHit", MAX_HITS);
+  frTopAdcPulseWinSource = new TClonesArray("THcSignalHit", MAX_HITS);
+  frTopAdcPulseNsub      = new TClonesArray("THcSignalHit", MAX_HITS);
   frTopAdcPulseAmp  = new TClonesArray("THcSignalHit", MAX_HITS);
   frTopAdcPulseTime = new TClonesArray("THcSignalHit", MAX_HITS);
 
@@ -51,6 +54,9 @@ THcLADHodoPlane::THcLADHodoPlane(const char *name, const char *description, cons
   frBtmTdcTime      = new TClonesArray("THcSignalHit", MAX_HITS);
   frBtmAdcPed       = new TClonesArray("THcSignalHit", MAX_HITS);
   frBtmAdcPulseInt  = new TClonesArray("THcSignalHit", MAX_HITS);
+  frBtmAdcPulseWinTrunc  = new TClonesArray("THcSignalHit", MAX_HITS);
+  frBtmAdcPulseWinSource = new TClonesArray("THcSignalHit", MAX_HITS);
+  frBtmAdcPulseNsub      = new TClonesArray("THcSignalHit", MAX_HITS);
   frBtmAdcPulseAmp  = new TClonesArray("THcSignalHit", MAX_HITS);
   frBtmAdcPulseTime = new TClonesArray("THcSignalHit", MAX_HITS);
 
@@ -95,6 +101,9 @@ THcLADHodoPlane::~THcLADHodoPlane() {
   delete frTopTdcTime;
   delete frTopAdcPed;
   delete frTopAdcPulseInt;
+  delete frTopAdcPulseWinTrunc;
+  delete frTopAdcPulseWinSource;
+  delete frTopAdcPulseNsub;
   delete frTopAdcPulseAmp;
   delete frTopAdcPulseTime;
 
@@ -107,6 +116,9 @@ THcLADHodoPlane::~THcLADHodoPlane() {
   delete frBtmTdcTime;
   delete frBtmAdcPed;
   delete frBtmAdcPulseInt;
+  delete frBtmAdcPulseWinTrunc;
+  delete frBtmAdcPulseWinSource;
+  delete frBtmAdcPulseNsub;
   delete frBtmAdcPulseAmp;
   delete frBtmAdcPulseTime;
 
@@ -268,6 +280,9 @@ void THcLADHodoPlane::Clear(Option_t *opt) {
   frTopTdcTime->Clear();
   frTopAdcPed->Clear();
   frTopAdcPulseInt->Clear();
+  frTopAdcPulseWinTrunc->Clear();
+  frTopAdcPulseWinSource->Clear();
+  frTopAdcPulseNsub->Clear();
   frTopAdcPulseAmp->Clear();
   frTopAdcPulseTime->Clear();
 
@@ -289,6 +304,9 @@ void THcLADHodoPlane::Clear(Option_t *opt) {
   frBtmTdcTime->Clear();
   frBtmAdcPed->Clear();
   frBtmAdcPulseInt->Clear();
+  frBtmAdcPulseWinTrunc->Clear();
+  frBtmAdcPulseWinSource->Clear();
+  frBtmAdcPulseNsub->Clear();
   frBtmAdcPulseAmp->Clear();
   frBtmAdcPulseTime->Clear();
 
@@ -629,6 +647,9 @@ Int_t THcLADHodoPlane::DefineVariables(EMode mode) {
         {"TopTdcTime", "List of top TDC values.", "frTopTdcTime.THcSignalHit.GetData()"},
         {"TopAdcPed", "List of top ADC pedestals", "frTopAdcPed.THcSignalHit.GetData()"},
         {"TopAdcPulseInt", "List of top ADC pulse integrals.", "frTopAdcPulseInt.THcSignalHit.GetData()"},
+        {"TopAdcPulseWinTrunc", "Top ADC pulse: firmware window clipped by the readout (1), full (0), unknown (-1)", "frTopAdcPulseWinTrunc.THcSignalHit.GetData()"},
+        {"TopAdcPulseWinSource", "Top ADC pulse window source: -1 legacy, 0 nominal, 1 exact match, 2 time estimate, 10 Samp pulse", "frTopAdcPulseWinSource.THcSignalHit.GetData()"},
+        {"TopAdcPulseNsub", "Top ADC pulse: pedestal samples subtracted in AdcPulseInt (-1: Samp pulse entry)", "frTopAdcPulseNsub.THcSignalHit.GetData()"},
         {"TopAdcPulseAmp", "List of top ADC pulse amplitudes.", "frTopAdcPulseAmp.THcSignalHit.GetData()"},
         {"TopAdcPulseTime", "List of top ADC pulse times.", "frTopAdcPulseTime.THcSignalHit.GetData()"},
 
@@ -651,6 +672,9 @@ Int_t THcLADHodoPlane::DefineVariables(EMode mode) {
         {"BtmTdcTime", "List of bottom TDC values.", "frBtmTdcTime.THcSignalHit.GetData()"},
         {"BtmAdcPed", "List of bottom ADC pedestals", "frBtmAdcPed.THcSignalHit.GetData()"},
         {"BtmAdcPulseInt", "List of bottom ADC pulse integrals.", "frBtmAdcPulseInt.THcSignalHit.GetData()"},
+        {"BtmAdcPulseWinTrunc", "Btm ADC pulse: firmware window clipped by the readout (1), full (0), unknown (-1)", "frBtmAdcPulseWinTrunc.THcSignalHit.GetData()"},
+        {"BtmAdcPulseWinSource", "Btm ADC pulse window source: -1 legacy, 0 nominal, 1 exact match, 2 time estimate, 10 Samp pulse", "frBtmAdcPulseWinSource.THcSignalHit.GetData()"},
+        {"BtmAdcPulseNsub", "Btm ADC pulse: pedestal samples subtracted in AdcPulseInt (-1: Samp pulse entry)", "frBtmAdcPulseNsub.THcSignalHit.GetData()"},
         {"BtmAdcPulseAmp", "List of bottom ADC pulse amplitudes.", "frBtmAdcPulseAmp.THcSignalHit.GetData()"},
         {"BtmAdcPulseTime", "List of bottom ADC pulse times.", "frBtmAdcPulseTime.THcSignalHit.GetData()"},
 
@@ -976,6 +1000,12 @@ Int_t THcLADHodoPlane::ProcessHits(TClonesArray *rawhits, Int_t nexthit) {
         ((THcSignalHit *)frTopAdcPulseIntRaw->ConstructedAt(nrTopAdcHits))
             ->Set(padnum, rawTopAdcHit.GetPulseIntRaw(thit));
         ((THcSignalHit *)frTopAdcPulseInt->ConstructedAt(nrTopAdcHits))->Set(padnum, rawTopAdcHit.GetPulseInt(thit));
+        ((THcSignalHit *)frTopAdcPulseWinTrunc->ConstructedAt(nrTopAdcHits))->Set(padnum, rawTopAdcHit.GetPulseWinTrunc(thit));
+        ((THcSignalHit *)frTopAdcPulseWinSource->ConstructedAt(nrTopAdcHits))->Set(padnum, rawTopAdcHit.GetPulseWinSource(thit));
+        ((THcSignalHit *)frTopAdcPulseNsub->ConstructedAt(nrTopAdcHits))
+            ->Set(padnum, rawTopAdcHit.GetF250_NPedestalSamples() * (rawTopAdcHit.GetPulseWinSource(thit) >= 0
+                                                               ? rawTopAdcHit.GetPulsePeakPedestalRatio(thit)
+                                                               : rawTopAdcHit.GetF250_PeakPedestalRatio()));
 
         ((THcSignalHit *)frTopAdcPulseAmpRaw->ConstructedAt(nrTopAdcHits))
             ->Set(padnum, rawTopAdcHit.GetPulseAmpRaw(thit));
@@ -1049,6 +1079,9 @@ Int_t THcLADHodoPlane::ProcessHits(TClonesArray *rawhits, Int_t nexthit) {
               ->Set(padnum, rawTopAdcHit.GetSampPulseIntRaw(thit));
           ((THcSignalHit *)frTopAdcPulseInt->ConstructedAt(nrTopAdcHits))
               ->Set(padnum, rawTopAdcHit.GetSampPulseInt(thit));
+          ((THcSignalHit *)frTopAdcPulseWinTrunc->ConstructedAt(nrTopAdcHits))->Set(padnum, -1);
+          ((THcSignalHit *)frTopAdcPulseWinSource->ConstructedAt(nrTopAdcHits))->Set(padnum, 10);
+          ((THcSignalHit *)frTopAdcPulseNsub->ConstructedAt(nrTopAdcHits))->Set(padnum, -1);
 
           ((THcSignalHit *)frTopAdcPulseAmpRaw->ConstructedAt(nrTopAdcHits))
               ->Set(padnum, rawTopAdcHit.GetSampPulseAmpRaw(thit));
@@ -1096,6 +1129,12 @@ Int_t THcLADHodoPlane::ProcessHits(TClonesArray *rawhits, Int_t nexthit) {
         ((THcSignalHit *)frBtmAdcPulseIntRaw->ConstructedAt(nrBtmAdcHits))
             ->Set(padnum, rawBtmAdcHit.GetPulseIntRaw(thit));
         ((THcSignalHit *)frBtmAdcPulseInt->ConstructedAt(nrBtmAdcHits))->Set(padnum, rawBtmAdcHit.GetPulseInt(thit));
+        ((THcSignalHit *)frBtmAdcPulseWinTrunc->ConstructedAt(nrBtmAdcHits))->Set(padnum, rawBtmAdcHit.GetPulseWinTrunc(thit));
+        ((THcSignalHit *)frBtmAdcPulseWinSource->ConstructedAt(nrBtmAdcHits))->Set(padnum, rawBtmAdcHit.GetPulseWinSource(thit));
+        ((THcSignalHit *)frBtmAdcPulseNsub->ConstructedAt(nrBtmAdcHits))
+            ->Set(padnum, rawBtmAdcHit.GetF250_NPedestalSamples() * (rawBtmAdcHit.GetPulseWinSource(thit) >= 0
+                                                               ? rawBtmAdcHit.GetPulsePeakPedestalRatio(thit)
+                                                               : rawBtmAdcHit.GetF250_PeakPedestalRatio()));
 
         ((THcSignalHit *)frBtmAdcPulseAmpRaw->ConstructedAt(nrBtmAdcHits))
             ->Set(padnum, rawBtmAdcHit.GetPulseAmpRaw(thit));
@@ -1169,6 +1208,9 @@ Int_t THcLADHodoPlane::ProcessHits(TClonesArray *rawhits, Int_t nexthit) {
               ->Set(padnum, rawBtmAdcHit.GetSampPulseIntRaw(thit));
           ((THcSignalHit *)frBtmAdcPulseInt->ConstructedAt(nrBtmAdcHits))
               ->Set(padnum, rawBtmAdcHit.GetSampPulseInt(thit));
+          ((THcSignalHit *)frBtmAdcPulseWinTrunc->ConstructedAt(nrBtmAdcHits))->Set(padnum, -1);
+          ((THcSignalHit *)frBtmAdcPulseWinSource->ConstructedAt(nrBtmAdcHits))->Set(padnum, 10);
+          ((THcSignalHit *)frBtmAdcPulseNsub->ConstructedAt(nrBtmAdcHits))->Set(padnum, -1);
 
           ((THcSignalHit *)frBtmAdcPulseAmpRaw->ConstructedAt(nrBtmAdcHits))
               ->Set(padnum, rawBtmAdcHit.GetSampPulseAmpRaw(thit));
