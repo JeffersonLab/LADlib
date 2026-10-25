@@ -208,6 +208,8 @@ protected:
   Double_t fSampThreshold;
   Int_t fSampNSA;
   Int_t fSampNSAT;
+  Int_t fSampGateMax;    // Samp gate timeout (THcRawAdcHit::SetSampGateMax), -1 = off
+  Int_t fSampPedFlatMax; // flatness guard (THcRawAdcHit::SetSampPedFlatMax), -1 = off
   Int_t fSampNSB;
   Int_t fOutputSampWaveform;
   Int_t fUseSampWaveform;
