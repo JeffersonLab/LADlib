@@ -211,6 +211,7 @@ protected:
   Int_t fSampNSB;
   Int_t fOutputSampWaveform;
   Int_t fUseSampWaveform;
+  Int_t fHitsUseSamp; // good hits from 0 = firmware, 1 = Samp pulses, -1 = follow fUseSampWaveform
   Int_t fIsMC;
 
   Double_t *fPosBtm; /* array with bottom position for all scintillators in the plane */
