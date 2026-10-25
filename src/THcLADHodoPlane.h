@@ -126,6 +126,9 @@ protected:
   TClonesArray *frTopAdcPed;
   TClonesArray *frTopAdcPulseIntRaw;
   TClonesArray *frTopAdcPulseInt;
+  TClonesArray *frTopAdcPulseWinTrunc;  // proposal 01: firmware window clipped by the readout (1), full (0), unknown (-1)
+  TClonesArray *frTopAdcPulseWinSource; // -1 legacy, 0 nominal, 1 exact match, 2 time estimate, 10 Samp pulse entry
+  TClonesArray *frTopAdcPulseNsub;      // pedestal samples subtracted in TopAdcPulseInt (-1 for Samp pulse entries)
   TClonesArray *frTopAdcPulseAmpRaw;
   TClonesArray *frTopAdcPulseAmp;
   TClonesArray *frTopAdcPulseTimeRaw;
@@ -145,6 +148,9 @@ protected:
   TClonesArray *frBtmAdcPed;
   TClonesArray *frBtmAdcPulseIntRaw;
   TClonesArray *frBtmAdcPulseInt;
+  TClonesArray *frBtmAdcPulseWinTrunc;  // proposal 01: firmware window clipped by the readout (1), full (0), unknown (-1)
+  TClonesArray *frBtmAdcPulseWinSource; // -1 legacy, 0 nominal, 1 exact match, 2 time estimate, 10 Samp pulse entry
+  TClonesArray *frBtmAdcPulseNsub;      // pedestal samples subtracted in BtmAdcPulseInt (-1 for Samp pulse entries)
   TClonesArray *frBtmAdcPulseAmpRaw;
   TClonesArray *frBtmAdcPulseAmp;
   TClonesArray *frBtmAdcPulseTimeRaw;
