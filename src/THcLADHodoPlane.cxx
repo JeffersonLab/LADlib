@@ -445,6 +445,8 @@ Int_t THcLADHodoPlane::ReadDatabase(const TDatime &date) {
                       {"ladhodo_SampNSA", &fSampNSA, kInt, 0, 1},
                       {"ladhodo_SampNSAT", &fSampNSAT, kInt, 0, 1},
                       {"ladhodo_SampNSB", &fSampNSB, kInt, 0, 1},
+                      {"ladhodo_SampGateMax", &fSampGateMax, kInt, 0, 1},
+                      {"ladhodo_SampPedFlatMax", &fSampPedFlatMax, kInt, 0, 1},
                       {"ladhodo_OutputSampWaveform", &fOutputSampWaveform, kInt, 0, 1},
                       {"ladhodo_UseSampWaveform", &fUseSampWaveform, kInt, 0, 1},
                       {"ladhodo_TDC_match_window", &fTDC_match_window, kDouble, 0, 1},
@@ -460,6 +462,8 @@ Int_t THcLADHodoPlane::ReadDatabase(const TDatime &date) {
   fSampNSA            = 0;  // use value stored in event 125 info
   fSampNSB            = 0;  // use value stored in event 125 info
   fSampNSAT           = 2;  // default value in THcRawHit::SetF250Params
+  fSampGateMax        = -1; // Samp gate timeout (samples); -1 = off (hcana default)
+  fSampPedFlatMax     = -1; // flatness guard for the gate-timeout fallback (counts); -1 = off
   fOutputSampWaveform = 0;  // 0= no output , 1 = output Sample Waveform
   fUseSampWaveform    = 0;  // 0= do not use , 1 = use Sample Waveform
   fTDC_match_window   = 50; //
@@ -1004,6 +1008,8 @@ Int_t THcLADHodoPlane::ProcessHits(TClonesArray *rawhits, Int_t nexthit) {
     // Use Waveform -- Do we use it? Leave it just in case
     if (rawTopAdcHit.GetNSamples() > 0) {
       rawTopAdcHit.SetSampThreshold(fSampThreshold);
+      rawTopAdcHit.SetSampGateMax(fSampGateMax);
+      rawTopAdcHit.SetSampPedFlatMax(fSampPedFlatMax);
       if (fSampNSA == 0)
         fSampNSA = rawTopAdcHit.GetF250_NSA();
       if (fSampNSB == 0)
@@ -1124,6 +1130,8 @@ Int_t THcLADHodoPlane::ProcessHits(TClonesArray *rawhits, Int_t nexthit) {
     // Use Waveform -- Do we use it? Leave it just in case
     if (rawBtmAdcHit.GetNSamples() > 0) {
       rawBtmAdcHit.SetSampThreshold(fSampThreshold);
+      rawBtmAdcHit.SetSampGateMax(fSampGateMax);
+      rawBtmAdcHit.SetSampPedFlatMax(fSampPedFlatMax);
       if (fSampNSA == 0)
         fSampNSA = rawBtmAdcHit.GetF250_NSA();
       if (fSampNSB == 0)
